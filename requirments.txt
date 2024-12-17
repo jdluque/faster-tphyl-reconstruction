@@ -6,3 +6,5 @@ networkx
 pybnb
 python-sat
 pygraphviz
+ortools
+scphylo-tools
