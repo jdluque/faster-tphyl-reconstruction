@@ -32,6 +32,8 @@ PhISCS-BnB has been published in **Bioinformatics (Proceedings of ISMB 2020)** [
 ## Installation
 PhISCS-BnB is written in Python. It supports Python 3. Currently it is intended to be run on POSIX-based systems (only Linux and macOS have been tested).  
 
+At the time of extending this project for ((our currently unnamed work)) the developers used Python 3.10.4. 
+
 ```console
 ~$ git clone https://github.com/algo-cancer/PhISCS-BnB.git
 ~$ cd PhISCS-BnB
