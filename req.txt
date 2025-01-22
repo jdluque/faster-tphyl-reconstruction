@@ -1,9 +1,0 @@
-tqdm==4.66.1
-scipy==1.10.1
-numpy==1.26.4
-pandas==2.2.3
-networkx==2.8.3
-pybnb==0.6.2
-python-sat==1.8.dev13
-ortools==9.11.4210
-scphylo-tools==0.0.4
