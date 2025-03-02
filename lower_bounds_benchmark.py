@@ -266,6 +266,7 @@ def calculate_bounds(data, logger, num_cols, verbose=False):
     # Update results
     new_row = pd.DataFrame(
         {
+            "num_columns": num_cols,
             "lp_all_columns_obj": [all_columns_LP_bound],
             "lp_all_columns_sol": [all_columns_LP_solution],
             "lp_all_columns_rounded_cost": [all_columns_LP_rounded_cost],
@@ -280,7 +281,6 @@ def calculate_bounds(data, logger, num_cols, verbose=False):
             ],
             "time_solve_vc": [exp_timers["time_solve_vc"]],
         },
-        index=[num_cols],
     )
     results = pd.concat([results, new_row])
     logger.info(
@@ -333,8 +333,9 @@ if __name__ == "__main__":
         "time_solve_vc",
         "time_solve_lp_conflict_cols_only",
     ]
-    results = pd.DataFrame(columns=df_columns_bounds + df_columns_times)
-    results.index.name = "num_cols"
+    results = pd.DataFrame(
+        columns=["num_columns"] + df_columns_bounds + df_columns_times
+    )
     logger.info("Created empty results dataframe")
 
     # Run the experiments
@@ -357,8 +358,22 @@ if __name__ == "__main__":
 
     # Save the results on disk
     write_time_str = str(datetime.datetime.now().replace(microsecond=0))
-    CSV_PATH = os.path.join(EXPS_DIR, write_time_str + ".csv")
+    RESULTS_FILENAME = os.path.join(EXPS_DIR, write_time_str)
     if not os.path.exists(EXPS_DIR):
         os.mkdir(EXPS_DIR)
-    results.to_csv(CSV_PATH)
-    logger.info(f"Saved the results to {CSV_PATH}")
+    result_times_and_objectives = [
+        "num_columns",
+        "lp_all_columns_obj",
+        "lp_all_columns_rounded_cost",
+        "lp_conflict_columns_only_obj",
+        "lp_conflict_columns_only_rounded_cost",
+        "vc_obj",
+        "time_solve_lp_all_cols",
+        "time_solve_vc",
+        "time_solve_lp_conflict_cols_only",
+    ]
+    results[result_times_and_objectives].to_csv(RESULTS_FILENAME + ".csv", index=False)
+    results.to_pickle(RESULTS_FILENAME + ".pickle")
+    logger.info(
+        f"Saved the results to {RESULTS_FILENAME}.csv and {RESULTS_FILENAME}.pickle"
+    )
