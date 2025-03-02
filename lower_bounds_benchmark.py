@@ -12,12 +12,7 @@ from scphylo import datasets
 
 from vc import vertex_cover_pp
 
-# ------- FUNCTIONS --------
 
-
-# Generate random data
-# Input: rows, cols, file, bias
-# Output: random_data
 def make_random_data(rows, cols, file=None, bias=0.7):
     random_data = [
         ([f"cell{i}"] if file else [])
@@ -33,15 +28,15 @@ def make_random_data(rows, cols, file=None, bias=0.7):
     return random_data
 
 
-# Read data function
-# Input: file - name of the file without extension
-# Return: In_SCS, CF_SCS, MutsAtEdges
-# Note: SCS converts all ? to 0
-# Note: MutsAtEdges is a list with a tuple - (parent, curr_node, muts: set)
-find_nodes_re = r"\[(?P<parent>[0-9]+)\]->\[(?P<node>[0-9]+)\]:"
-
-
 def read_data(file):
+    """Read data function
+    Input: file - name of the file without extension
+    Return: In_SCS, CF_SCS, MutsAtEdges
+    Note: SCS converts all ? to 0
+    Note: MutsAtEdges is a list with a tuple - (parent, curr_node, muts: set)
+    """
+    # TODO: Regex is overkill
+    find_nodes_re = r"\[(?P<parent>[0-9]+)\]->\[(?P<node>[0-9]+)\]:"
     raw = pd.read_csv(file + ".SC", sep="\t", dtype=str)
     In_SCS = (raw.iloc[:, 1:] == "1").astype(np.bool)
     try:
@@ -62,10 +57,10 @@ def read_data(file):
     return In_SCS, CF_SCS, MutsAtEdges
 
 
-# Conversion cost
-# Input: X - from matrix, Y - to matrix
-# Return: Cost of converting X into Y
 def get_conversion_cost(X, Y):
+    """Input: X - from matrix, Y - to matrix
+    Return: Cost of converting X into Y
+    """
     cost = 0
     for i in range(X.shape[0]):
         for j in range(X.shape[1]):
@@ -76,13 +71,8 @@ def get_conversion_cost(X, Y):
     return cost
 
 
-# Conflict column pairs
-# Input: X - matrix of SCS data
-# Return: nxn columns pairs, True - is conflict
-
-
-# Check if a column pair has conflicts - Utility function
 def is_conflict(X, p, q):
+    """Check if a columns p and q of X have conflicts."""
     col_p = X[:, p]
     col_q = X[:, q]
     is10 = np.any((col_p == 1) & (col_q == 0))
@@ -91,8 +81,11 @@ def is_conflict(X, p, q):
     return is10 and is01 and is11
 
 
-# Get matrix of is_conflict
 def find_conflict_columns(X):
+    """Conflict column pairs
+    Input: X - matrix of SCS data
+    Return: nxn columns pairs, True - is conflict
+    """
     X_np = X.to_numpy()
     num_cols = X_np.shape[1]
     conflicts = np.zeros((num_cols, num_cols), dtype=bool)
@@ -102,13 +95,12 @@ def find_conflict_columns(X):
     return pd.DataFrame(conflicts)
 
 
-# TODO: Make this more efficient - make it threads, etc.
-
-
-# Solve the LP & find the lower bound
-# Input: SCS, ColSelector - which col pairs to add constraints for, verbose
-# Return: LP_objective, LP_solution (float)
 def solve_LP(SCS, ColSelector=None, verbose=False):
+    """Solve the LP & find the lower bound
+    Input: SCS, ColSelector - which col pairs to add constraints for, verbose
+    Return: LP_objective, LP_solution (float)
+    """
+    # TODO: Make this more efficient - make it threads, etc.
     solver = pywraplp.Solver.CreateSolver("GLOP")
     m = SCS.shape[0]  # rows
     n = SCS.shape[1]  # cols
@@ -185,10 +177,10 @@ def solve_LP(SCS, ColSelector=None, verbose=False):
     return objective_value, solution
 
 
-# Compare SCS data
-# Input: SCS_array - list of SCS matrices, SCS_names - list of names
-# Return: Matrix of each difference - (row, col, mat1_val, mat2_val, ...)
 def compare_SCS(SCS_array, SCS_names):
+    """Input: SCS_array - list of SCS matrices, SCS_names - list of names
+    Return: Matrix of each difference - (row, col, mat1_val, mat2_val, ...)
+    """
     m = SCS_array[0].shape[0]
     n = SCS_array[0].shape[1]
     diffs = []
@@ -206,13 +198,11 @@ def compare_SCS(SCS_array, SCS_names):
     return diffs
 
 
-# ------- DRIVER --------
-
-
-# Run LP (all columns), LP (conflict columns), and Vertex Cover
-# Input: data, logger, conflict_columns, num_cols
-# Output: (modifies results)
 def calculate_bounds(data, logger, conflict_columns, num_cols, verbose=False):
+    """Run LP (all columns), LP (conflict columns), and Vertex Cover
+    Input: data, logger, conflict_columns, num_cols
+    Output: (modifies results)
+    """
     global results
     exp_timers = {}  # manage times
 
@@ -374,5 +364,5 @@ if __name__ == "__main__":
     CSV_PATH = os.path.join(EXPS_DIR, write_time_str + ".csv")
     if not os.path.exists(EXPS_DIR):
         os.mkdir(EXPS_DIR)
-    results.to_pickle(CSV_PATH)
+    results.to_csv(CSV_PATH)
     logger.info(f"Saved the results to {CSV_PATH}")
