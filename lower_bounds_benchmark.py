@@ -1,3 +1,4 @@
+import argparse
 import datetime
 import logging
 import os
@@ -290,10 +291,19 @@ def calculate_bounds(data, logger, num_cols, verbose=False):
 
 
 if __name__ == "__main__":
-    # Arguments
-    REAL_DATA = datasets.melanoma20().X  # Dataset used
-    DATASET_NAME = "melanoma20"
     # Other datasets: https://scphylo-tools.readthedocs.io/en/latest/api_reference.html#datasets-datasets
+    dataset_options = {
+        "melanoma20": datasets.melanoma20().X,
+        "acute_myeloid_leukemia1": datasets.acute_myeloid_leukemia1().X,
+    }
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--dataset", "-d", choices=list(dataset_options.keys()), default="melanoma20"
+    )
+    args = parser.parse_args()
+
+    DATASET_NAME = args.dataset
+    REAL_DATA = dataset_options[DATASET_NAME]  # Dataset used
     EXPS_DIR = "results"
 
     # Setup logger
@@ -320,7 +330,7 @@ if __name__ == "__main__":
     logger.info(f"Finished Reading Data\n\tData (In_SCS) shape: {In_SCS.shape}")
 
     # Create empty results dataframe
-    exp_metadata = ["num_columns", "dataset_name"]
+    exp_metadata = ["num_columns", "dataset"]
     df_columns_bounds = [
         "lp_all_columns_obj",
         "lp_all_columns_sol",
