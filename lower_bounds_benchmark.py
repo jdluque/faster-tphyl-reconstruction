@@ -64,9 +64,9 @@ def get_conversion_cost(X, Y):
     cost = 0
     for i in range(X.shape[0]):
         for j in range(X.shape[1]):
-            if X.iloc[i, j] > Y.iloc[i, j]:
+            if X[i, j] > Y[i, j]:
                 exit(1)  # This is a false positive mutation
-            if X.iloc[i, j] < Y.iloc[i, j]:
+            if X[i, j] < Y[i, j]:
                 cost += 1
     return cost
 
@@ -92,12 +92,16 @@ def find_conflict_columns(X):
     for p in range(num_cols):
         for q in range(num_cols):
             conflicts[p, q] = is_conflict(X_np, p, q)
+    # TODO: Why is this stored as a DataFrame?
     return pd.DataFrame(conflicts)
 
 
-def solve_LP(SCS, ColSelector=None, verbose=False):
+def solve_LP(SCS, include_cols=None, verbose=False):
     """Solve the LP & find the lower bound
-    Input: SCS, ColSelector - which col pairs to add constraints for, verbose
+    Input:
+    SCS
+    include_cols: (p, q) -> bool
+        Whether to include constraints for columns p and q
     Return: LP_objective, LP_solution (float)
     """
     # TODO: Make this more efficient - make it threads, etc.
@@ -109,22 +113,20 @@ def solve_LP(SCS, ColSelector=None, verbose=False):
     vars = {}
     for p in range(n):
         for q in range(p + 1, n):
-            if ColSelector is None or ColSelector.iloc[p, q]:  # Check cols
+            if include_cols is None or include_cols(p, q):  # Check cols
                 vars[f"B_{p}_{q}_1_0"] = solver.NumVar(0, 1, f"B_{p}_{q}_1_0")  # (6)
                 vars[f"B_{p}_{q}_0_1"] = solver.NumVar(0, 1, f"B_{p}_{q}_0_1")  # (6)
                 vars[f"B_{p}_{q}_1_1"] = solver.NumVar(0, 1, f"B_{p}_{q}_1_1")  # (6)
     for i in range(m):
         for j in range(n):
-            vars[f"x_{i}_{j}"] = solver.NumVar(
-                float(SCS.iloc[i, j]), 1, f"x_{i}_{j}"
-            )  # (7)
+            vars[f"x_{i}_{j}"] = solver.NumVar(float(SCS[i, j]), 1, f"x_{i}_{j}")  # (7)
     if verbose:
         print(solver.NumVariables(), "variables created")
 
     # Create constraints
     for p in range(n):
         for q in range(p + 1, n):
-            if ColSelector is None or ColSelector.iloc[p, q]:  # Check cols
+            if include_cols is None or include_cols(p, q):  # Check cols
                 solver.Add(
                     vars[f"B_{p}_{q}_1_0"]
                     + vars[f"B_{p}_{q}_0_1"]
@@ -151,7 +153,7 @@ def solve_LP(SCS, ColSelector=None, verbose=False):
     objective = solver.Objective()
     for i in range(m):
         for j in range(n):
-            if SCS.iloc[i, j] == 0:  # only if they used to be 0
+            if SCS[i, j] == 0:  # only if they used to be 0
                 objective.SetCoefficient(vars[f"x_{i}_{j}"], 1)  # (1)
     objective.SetMinimization()
 
@@ -198,7 +200,7 @@ def compare_SCS(SCS_array, SCS_names):
     return diffs
 
 
-def calculate_bounds(data, logger, conflict_columns, num_cols, verbose=False):
+def calculate_bounds(data, logger, num_cols, verbose=False):
     """Run LP (all columns), LP (conflict columns), and Vertex Cover
     Input: data, logger, conflict_columns, num_cols
     Output: (modifies results)
@@ -217,7 +219,7 @@ def calculate_bounds(data, logger, conflict_columns, num_cols, verbose=False):
         time.time() - exp_timers["time_solve_lp_all_cols"]
     )
     all_columns_LP_rounded_cost = get_conversion_cost(
-        data, (all_columns_LP_solution.iloc[:, :] >= 0.5).astype(int)
+        data, (all_columns_LP_solution.iloc[:, :] >= 0.5).astype(int).to_numpy()
     )
     logger.info(
         f"Finished solving LP with All Columns"
@@ -231,13 +233,13 @@ def calculate_bounds(data, logger, conflict_columns, num_cols, verbose=False):
     # Task 2: Find the LP based lower bound (conflict columns)
     exp_timers["time_solve_lp_conflict_cols_only"] = time.time()
     conflict_columns_LP_bound, conflict_columns_LP_solution = solve_LP(
-        data, conflict_columns
+        data, lambda p, q: is_conflict(data, p, q)
     )
     exp_timers["time_solve_lp_conflict_cols_only"] = (
         time.time() - exp_timers["time_solve_lp_conflict_cols_only"]
     )
     conflict_columns_LP_rounded_cost = get_conversion_cost(
-        data, (conflict_columns_LP_solution.iloc[:, :] >= 0.5).astype(int)
+        data, (conflict_columns_LP_solution.iloc[:, :] >= 0.5).astype(int).to_numpy()
     )
     logger.info(
         f"Finished solving LP with Conflict Columns"
@@ -250,7 +252,7 @@ def calculate_bounds(data, logger, conflict_columns, num_cols, verbose=False):
 
     # Task 3: Find the Vertex Cover based lower bound
     exp_timers["time_solve_vc"] = time.time()
-    vc_lb, vc_flipped_bits = vertex_cover_pp(data.to_numpy())
+    vc_lb, vc_flipped_bits = vertex_cover_pp(data)
     exp_timers["time_solve_vc"] = time.time() - exp_timers["time_solve_vc"]
     logger.info(
         f"Finished solving the Vertex Cover"
@@ -309,16 +311,11 @@ if __name__ == "__main__":
     logger.info("Starting the test_bounds.py script")
 
     # Read in data in my format
-    In_SCS = pd.DataFrame(REAL_DATA).astype(int)
-    In_SCS.columns = [f"mut{i}" for i in range(In_SCS.shape[1])]
+    In_SCS = REAL_DATA
+    # In_SCS.columns = [f"mut{i}" for i in range(In_SCS.shape[1])]
     m = In_SCS.shape[0]  # rows
     n = In_SCS.shape[1]  # cols
     logger.info(f"Finished Reading Data\n\tData (In_SCS) shape: {In_SCS.shape}")
-
-    # Find conflict columns (doing this before LP)
-    # Takes around 40s for melanoma20 dataset(20x2000) on Arjun's laptop
-    conflict_columns = find_conflict_columns(In_SCS)
-    logger.info("Finished Finding Conflict Columns")
 
     # Create empty results dataframe
     df_columns_bounds = [
@@ -347,9 +344,8 @@ if __name__ == "__main__":
     try:
         for num_cols in cols:
             calculate_bounds(
-                In_SCS.iloc[:, :num_cols],
+                In_SCS[:, :num_cols],
                 logger,
-                conflict_columns,
                 num_cols,
                 verbose=False,
             )
