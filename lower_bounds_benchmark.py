@@ -266,6 +266,7 @@ def calculate_bounds(data, logger, num_cols, verbose=False):
     # Update results
     new_row = pd.DataFrame(
         {
+            "dataset": DATASET_NAME,
             "num_columns": num_cols,
             "lp_all_columns_obj": [all_columns_LP_bound],
             "lp_all_columns_sol": [all_columns_LP_solution],
@@ -291,6 +292,7 @@ def calculate_bounds(data, logger, num_cols, verbose=False):
 if __name__ == "__main__":
     # Arguments
     REAL_DATA = datasets.melanoma20().X  # Dataset used
+    DATASET_NAME = "melanoma20"
     # Other datasets: https://scphylo-tools.readthedocs.io/en/latest/api_reference.html#datasets-datasets
     EXPS_DIR = "results"
 
@@ -318,6 +320,7 @@ if __name__ == "__main__":
     logger.info(f"Finished Reading Data\n\tData (In_SCS) shape: {In_SCS.shape}")
 
     # Create empty results dataframe
+    exp_metadata = ["num_columns", "dataset_name"]
     df_columns_bounds = [
         "lp_all_columns_obj",
         "lp_all_columns_sol",
@@ -333,36 +336,34 @@ if __name__ == "__main__":
         "time_solve_vc",
         "time_solve_lp_conflict_cols_only",
     ]
-    results = pd.DataFrame(
-        columns=["num_columns"] + df_columns_bounds + df_columns_times
-    )
+    results = pd.DataFrame(columns=exp_metadata + df_columns_bounds + df_columns_times)
     logger.info("Created empty results dataframe")
 
     # Run the experiments
     logger.info("Starting the experiments")
-    # cols = [20, 50, 100, 200, 500, 1000, 1500, 2000, n]  # TODO: This is hardcoded
-    cols = [20, 30]
-    try:
-        for num_cols in cols:
+    num_cols = 2
+    while num_cols < n:
+        try:
             calculate_bounds(
                 In_SCS[:, :num_cols],
                 logger,
                 num_cols,
                 verbose=False,
             )
-    except KeyboardInterrupt as e:
-        logger.error(f"Error on run {num_cols}: {e}")
-        logger.error("Stopping experiments and saving the results")
-    else:
-        logger.info("Finished the experiments")
+        except KeyboardInterrupt as e:
+            logger.error(f"Error on run {num_cols}: {e}")
+            logger.error("Stopping experiments and saving the results")
+            break
+        else:
+            logger.info("Finished the experiments")
+        num_cols = min(2 * num_cols, n)
 
     # Save the results on disk
     write_time_str = str(datetime.datetime.now().replace(microsecond=0))
     RESULTS_FILENAME = os.path.join(EXPS_DIR, write_time_str)
     if not os.path.exists(EXPS_DIR):
         os.mkdir(EXPS_DIR)
-    result_times_and_objectives = [
-        "num_columns",
+    result_times_and_objectives = exp_metadata + [
         "lp_all_columns_obj",
         "lp_all_columns_rounded_cost",
         "lp_conflict_columns_only_obj",
