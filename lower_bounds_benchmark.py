@@ -351,8 +351,12 @@ if __name__ == "__main__":
 
     # Run the experiments
     logger.info("Starting the experiments")
-    num_cols = 2
-    while num_cols < n:
+    # Try various column numbers, growing exponentially up to n
+    num_colss = [16]
+    while num_colss[-1] > 2:
+        num_colss.append(num_colss[-1] // 2)
+    num_colss = num_colss[::-1]
+    for num_cols in num_colss:
         try:
             calculate_bounds(
                 In_SCS[:, :num_cols],
@@ -366,7 +370,6 @@ if __name__ == "__main__":
             break
         else:
             logger.info("Finished the experiments")
-        num_cols = min(2 * num_cols, n)
 
     # Save the results on disk
     write_time_str = str(datetime.datetime.now().replace(microsecond=0))
