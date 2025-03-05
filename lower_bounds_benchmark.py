@@ -76,25 +76,7 @@ def is_conflict(X, p, q):
     """Check if a columns p and q of X have conflicts."""
     col_p = X[:, p]
     col_q = X[:, q]
-    is10 = np.any((col_p == 1) & (col_q == 0))
-    is01 = np.any((col_p == 0) & (col_q == 1))
-    is11 = np.any((col_p == 1) & (col_q == 1))
-    return is10 and is01 and is11
-
-
-def find_conflict_columns(X):
-    """Conflict column pairs
-    Input: X - matrix of SCS data
-    Return: nxn columns pairs, True - is conflict
-    """
-    X_np = X.to_numpy()
-    num_cols = X_np.shape[1]
-    conflicts = np.zeros((num_cols, num_cols), dtype=bool)
-    for p in range(num_cols):
-        for q in range(num_cols):
-            conflicts[p, q] = is_conflict(X_np, p, q)
-    # TODO: Why is this stored as a DataFrame?
-    return pd.DataFrame(conflicts)
+    return np.any(col_p & col_q) and np.any(~col_p & col_q) and np.any(col_p & ~col_q)
 
 
 def solve_LP(SCS, include_cols=None, verbose=False):
@@ -178,27 +160,6 @@ def solve_LP(SCS, include_cols=None, verbose=False):
 
     # Return
     return objective_value, solution
-
-
-def compare_SCS(SCS_array, SCS_names):
-    """Input: SCS_array - list of SCS matrices, SCS_names - list of names
-    Return: Matrix of each difference - (row, col, mat1_val, mat2_val, ...)
-    """
-    m = SCS_array[0].shape[0]
-    n = SCS_array[0].shape[1]
-    diffs = []
-    for i in range(m):
-        for j in range(n):
-            to_add = False
-            temp = [i, j]
-            for SCS_DF in SCS_array:
-                if SCS_DF.iloc[i, j] != SCS_array[0].iloc[i, j]:
-                    to_add = True
-                temp.append(SCS_DF.iloc[i, j])
-            if to_add:
-                diffs.append(temp)
-    diffs = pd.DataFrame(diffs, columns=["row", "col"] + SCS_names)
-    return diffs
 
 
 def calculate_bounds(data, logger, num_cols, verbose=False):
@@ -293,8 +254,8 @@ def calculate_bounds(data, logger, num_cols, verbose=False):
 if __name__ == "__main__":
     # Other datasets: https://scphylo-tools.readthedocs.io/en/latest/api_reference.html#datasets-datasets
     dataset_options = {
-        "melanoma20": datasets.melanoma20().X,
-        "acute_myeloid_leukemia1": datasets.acute_myeloid_leukemia1().X,
+        "melanoma20": datasets.melanoma20().X.astype(np.bool),
+        "acute_myeloid_leukemia1": datasets.acute_myeloid_leukemia1().X.astype(np.bool),
     }
     parser = argparse.ArgumentParser()
     parser.add_argument(
