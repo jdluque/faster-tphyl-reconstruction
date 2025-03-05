@@ -8,7 +8,6 @@ from collections import defaultdict
 import networkx as nx
 import numpy as np
 import pandas as pd
-from networkx.algorithms.approximation import min_weighted_vertex_cover
 
 
 def make_graph(A):
@@ -42,6 +41,18 @@ def make_graph(A):
     return G
 
 
+def min_unweighted_vertex_cover(G):
+    """For unweightred case, no need to use local ratio techniques used in
+    networkx.algorithms.min_weighted_vertex_cover().
+    """
+    cover = set()
+    for u, v in G.edges():
+        if u in cover or v in cover:
+            continue
+        cover.add(u)
+    return cover
+
+
 def vertex_cover_pp(A):
     """Returns
     1. a lower bound on the number of bit flips required to make A a
@@ -49,7 +60,7 @@ def vertex_cover_pp(A):
     2. a set of (i,j) indices of bits flipped.
     """
     G = make_graph(A)
-    vc = min_weighted_vertex_cover(G)
+    vc = min_unweighted_vertex_cover(G)
     flipped_bits = len(vc)
     return int(np.ceil(flipped_bits / 2)), list(G.nodes)
 
