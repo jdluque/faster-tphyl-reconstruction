@@ -39,18 +39,37 @@ rec_num = 0
 
 
 def solve_by_BnB(matrix_in, na_value, which_bounding):
+    """This function uses the LinearProgrammingBounding algorithm to solve the problem."""
     bounding_algs = [
-        # TwoSatBounding(
-        #     heuristic_setting=None, n_levels=2, compact_formulation=False, na_value=na_value,
-        # ),  # Real Data
-        # TwoSatBounding(
-        #     heuristic_setting=[True, True, False, True, True],
-        #     n_levels=1,
-        #     compact_formulation=True,
-        #     na_value=na_value,
-        # ),  # Simulation
         LinearProgrammingBounding(),  # Real Data
         LinearProgrammingBounding(),  # Simulation
+    ]
+    result = bnb_solve(
+        matrix_in, bounding_algorithm=bounding_algs[which_bounding], na_value=na_value
+    )
+    matrix_output = result[0]
+    flips = []
+    zero_one_flips = np.where((matrix_in != matrix_output) & (matrix_in != na_value))
+    for i in range(len(zero_one_flips[0])):
+        flips.append((zero_one_flips[0][i], zero_one_flips[1][i]))
+    na_one_flips = np.where((matrix_output == 1) & (matrix_in == na_value))
+    for i in range(len(na_one_flips[0])):
+        flips.append((na_one_flips[0][i], na_one_flips[1][i]))
+
+    return flips
+
+def solve_by_BnB_org(matrix_in, na_value, which_bounding):
+    """This function uses the original TwoSatBounding algorithm to solve the problem."""
+    bounding_algs = [
+        TwoSatBounding(
+            heuristic_setting=None, n_levels=2, compact_formulation=False, na_value=na_value,
+        ),  # Real Data
+        TwoSatBounding(
+            heuristic_setting=[True, True, False, True, True],
+            n_levels=1,
+            compact_formulation=True,
+            na_value=na_value,
+        ),  # Simulation
     ]
     result = bnb_solve(
         matrix_in, bounding_algorithm=bounding_algs[which_bounding], na_value=na_value
@@ -710,8 +729,7 @@ class TwoSatBounding(BoundingAlgAbstract):
 # TODO: Do I need to do deep copy instead of copy
 class LinearProgrammingBounding(BoundingAlgAbstract):
     def __init__(self, priority_version=-1, na_value=None):
-        """
-        Initialize the Linear Programming Bounding algorithm.
+        """Initialize the Linear Programming Bounding algorithm.
         
         Args:
             priority_version: Controls node priority in the branch and bound tree
@@ -738,8 +756,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         return "_".join(params_str)
 
     def reset(self, matrix):
-        """
-        Reset the bounding algorithm with a new matrix.
+        """Reset the bounding algorithm with a new matrix.
         
         Args:
             matrix: The input matrix for the problem
@@ -750,9 +767,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         self.model_state = None
 
     def get_init_node(self):
-        """
-        Create and return an initial node with a solution from the LP relaxation.
-        This initial node can potentially be conflict-free.
+        """Create and return an initial node with a solution from the LP relaxation.
         
         Returns:
             A pybnb.Node object with initial solution
@@ -850,8 +865,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         return node
 
     def compute_lp_bound(self, delta, na_delta=None):
-        """
-        Helper method to compute LP bound for a given delta.
+        """Helper method to compute LP bound for a given delta.
         
         Args:
             delta: Sparse matrix with flipped entries
@@ -929,8 +943,8 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         # Check for conflicts in the LP solution
         for p in range(n):
             for q in range(p+1, n):
-                if (vars[f"B_{p}_{q}_1_0"].solution_value() > 0.5 or
-                    vars[f"B_{p}_{q}_0_1"].solution_value() > 0.5 or
+                if (vars[f"B_{p}_{q}_1_0"].solution_value() > 0.5 and
+                    vars[f"B_{p}_{q}_0_1"].solution_value() > 0.5 and
                     vars[f"B_{p}_{q}_1_1"].solution_value() > 0.5):
                     is_conflict_free = False
                     conflict_col_pair = (p, q)
@@ -948,8 +962,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         return objective_value + delta.count_nonzero()
 
     def get_bound(self, delta, na_delta=None):
-        """
-        Calculate a lower bound on the number of flips needed.
+        """Calculate a lower bound on the number of flips needed.
         
         Args:
             delta: Sparse matrix with flipped entries
@@ -968,8 +981,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         return self.compute_lp_bound(delta, na_delta)
 
     def get_state(self):
-        """
-        Get the current state of the bounding algorithm.
+        """Get the current state of the bounding algorithm.
         
         Returns:
             State dictionary or None
@@ -977,8 +989,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         return self.model_state
 
     def set_state(self, state):
-        """
-        Restore the state of the bounding algorithm.
+        """Restore the state of the bounding algorithm.
         
         Args:
             state: State dictionary or None
@@ -986,8 +997,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         self.model_state = state
 
     def get_extra_info(self):
-        """
-        Get extra information from the bounding algorithm.
+        """Get extra information from the bounding algorithm.
         
         Returns:
             Dictionary with extra information
@@ -995,8 +1005,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         return copy.copy(self._extraInfo)
 
     def get_priority(self, till_here, this_step, after_here, icf=False): # TODO: Do I need this
-        """
-        Calculate the priority of a node for the branch and bound queue.
+        """Calculate the priority of a node for the branch and bound queue.
         
         Args:
             till_here: Flips made so far
@@ -1034,8 +1043,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
                 return -after_here
 
     def get_times(self):
-        """
-        Get timing information.
+        """Get timing information.
         
         Returns:
             Dictionary with timing information
