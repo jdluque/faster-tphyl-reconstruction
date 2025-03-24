@@ -39,7 +39,7 @@ rec_num = 0
 
 
 def solve_by_BnB(matrix_in, na_value, which_bounding):
-    """This function uses the LinearProgrammingBounding algorithm to solve the problem."""
+    """Use LinearProgrammingBounding to run BnB algorithm."""
     bounding_algs = [
         LinearProgrammingBounding(),  # Real Data
         LinearProgrammingBounding(),  # Simulation
@@ -59,7 +59,7 @@ def solve_by_BnB(matrix_in, na_value, which_bounding):
     return flips
 
 def solve_by_BnB_org(matrix_in, na_value, which_bounding):
-    """This function uses the original TwoSatBounding algorithm to solve the problem."""
+    """Use TwoSatBounding to run BnB algorithm."""
     bounding_algs = [
         TwoSatBounding(
             heuristic_setting=None, n_levels=2, compact_formulation=False, na_value=na_value,
@@ -943,9 +943,9 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         # Check for conflicts in the LP solution
         for p in range(n):
             for q in range(p+1, n):
-                if (vars[f"B_{p}_{q}_1_0"].solution_value() > 0.5 and
-                    vars[f"B_{p}_{q}_0_1"].solution_value() > 0.5 and
-                    vars[f"B_{p}_{q}_1_1"].solution_value() > 0.5):
+                if (vars[f"B_{p}_{q}_1_0"].solution_value() >= 0.5 and
+                    vars[f"B_{p}_{q}_0_1"].solution_value() >= 0.5 and
+                    vars[f"B_{p}_{q}_1_1"].solution_value() >= 0.5):
                     is_conflict_free = False
                     conflict_col_pair = (p, q)
                     break
