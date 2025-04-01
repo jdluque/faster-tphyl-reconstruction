@@ -39,26 +39,6 @@ rec_num = 0
 
 
 def solve_by_BnB(matrix_in, na_value, which_bounding):
-    """Use LinearProgrammingBounding to run BnB algorithm."""
-    bounding_algs = [
-        LinearProgrammingBounding(),  # Real Data
-        LinearProgrammingBounding(),  # Simulation
-    ]
-    result = bnb_solve(
-        matrix_in, bounding_algorithm=bounding_algs[which_bounding], na_value=na_value
-    )
-    matrix_output = result[0]
-    flips = []
-    zero_one_flips = np.where((matrix_in != matrix_output) & (matrix_in != na_value))
-    for i in range(len(zero_one_flips[0])):
-        flips.append((zero_one_flips[0][i], zero_one_flips[1][i]))
-    na_one_flips = np.where((matrix_output == 1) & (matrix_in == na_value))
-    for i in range(len(na_one_flips[0])):
-        flips.append((na_one_flips[0][i], na_one_flips[1][i]))
-
-    return flips
-
-def solve_by_BnB_org(matrix_in, na_value, which_bounding):
     """Use TwoSatBounding to run BnB algorithm."""
     bounding_algs = [
         TwoSatBounding(
@@ -70,6 +50,7 @@ def solve_by_BnB_org(matrix_in, na_value, which_bounding):
             compact_formulation=True,
             na_value=na_value,
         ),  # Simulation
+        LinearProgrammingBounding() # Linear Programming
     ]
     result = bnb_solve(
         matrix_in, bounding_algorithm=bounding_algs[which_bounding], na_value=na_value
@@ -413,7 +394,7 @@ def make_constraints_np_matrix(
                 if cost > 0:  # don't do anything if one of r01 or r10 is empty
                     if not compact_formulation:
                         # len(r01) * len(r10) * (len(r01) * len(r10)) many constraints will be added
-                        x = np.empty((r01.shape[0] + r10.shape[0], 2), dtype=np.int)
+                        x = np.empty((r01.shape[0] + r10.shape[0], 2), dtype=np.int64)
                         x[: len(r01), 0] = r01
                         x[: len(r01), 1] = p
                         x[-len(r10) :, 0] = r10
@@ -725,9 +706,18 @@ class TwoSatBounding(BoundingAlgAbstract):
                 return 0
         assert False, "get_priority did not return anything!"
 
+# Utility function to check if two columns have conflicts
+def is_conflict(X, p, q):
+    """Check if a columns p and q of X have conflicts."""
+    col_p = X[:, p]
+    col_q = X[:, q]
+    return np.any(col_p & col_q) and np.any(~col_p & col_q) and np.any(col_p & ~col_q)
+
+
 # TODO: Add an option for only conflict columns (saving the conflict cols)
 # TODO: Do I need to do deep copy instead of copy
 class LinearProgrammingBounding(BoundingAlgAbstract):
+
     def __init__(self, priority_version=-1, na_value=None):
         """Initialize the Linear Programming Bounding algorithm.
         
@@ -891,7 +881,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         vars = {}
         for p in range(n):
             for q in range(p+1, n):
-                # if ColSelector is None or ColSelector.iloc[p, q]: # Check cols
+                if is_conflict(current_matrix, p, q): # Check cols # TODO: CHANGE
                     vars[f"B_{p}_{q}_1_0"] = solver.NumVar(0, 1, f"B_{p}_{q}_1_0")  # (6)
                     vars[f"B_{p}_{q}_0_1"] = solver.NumVar(0, 1, f"B_{p}_{q}_0_1")  # (6)
                     vars[f"B_{p}_{q}_1_1"] = solver.NumVar(0, 1, f"B_{p}_{q}_1_1")  # (6)
@@ -903,7 +893,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         # Create constraints
         for p in range(n):
             for q in range(p+1, n):
-                # if ColSelector is None or ColSelector.iloc[p, q]: # Check cols
+                if is_conflict(current_matrix, p, q): # Check cols # TODO: CHANGE
                     solver.Add(vars[f"B_{p}_{q}_1_0"] + vars[f"B_{p}_{q}_0_1"] + vars[f"B_{p}_{q}_1_1"] <= 2)  # (5)
                     
                     for i in range(m):
@@ -936,26 +926,11 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         # Get objective value
         objective_value = objective.Value()
         
-        # Check if solution is conflict-free (Do i need to do this?)
-        is_conflict_free = True
-        conflict_col_pair = None
-        
-        # Check for conflicts in the LP solution
-        for p in range(n):
-            for q in range(p+1, n):
-                if (vars[f"B_{p}_{q}_1_0"].solution_value() >= 0.5 and
-                    vars[f"B_{p}_{q}_0_1"].solution_value() >= 0.5 and
-                    vars[f"B_{p}_{q}_1_1"].solution_value() >= 0.5):
-                    is_conflict_free = False
-                    conflict_col_pair = (p, q)
-                    break
-            if not is_conflict_free:
-                break
-        
-        # Save extra info for branching decisions
+        # Save extra info for branching decisions (TODO: Is this needed)
+        icf, col_pair = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(current_matrix, self.na_value)
         self._extraInfo = {
-            "icf": is_conflict_free,
-            "one_pair_of_columns": conflict_col_pair
+            "icf": icf,
+            "one_pair_of_columns": col_pair
         }
         
         # Return the bound (LP objective + existing flips)
