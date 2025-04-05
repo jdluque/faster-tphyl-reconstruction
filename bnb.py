@@ -36,6 +36,8 @@ from ortools.linear_solver import pywraplp
 from pysat.examples.rc2 import RC2
 from pysat.formula import WCNF
 
+from linear_programming import get_linear_program
+
 rec_num = 0
 
 
@@ -821,58 +823,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         # Start timing model preparation
         model_time_start = time.time()
 
-        # Create solver
-        solver = pywraplp.Solver.CreateSolver("GLOP")
-
-        # Get dimensions
-        m = self.matrix.shape[0]  # rows
-        n = self.matrix.shape[1]  # cols
-
-        # Create variables
-        vars = {}
-        for i in range(m):
-            for j in range(n):
-                vars[f"x_{i}_{j}"] = solver.NumVar(
-                    float(self.matrix[i, j]), 1, f"x_{i}_{j}"
-                )
-
-        for p in range(n):
-            for q in range(p + 1, n):
-                vars[f"B_{p}_{q}_1_0"] = solver.NumVar(0, 1, f"B_{p}_{q}_1_0")
-                vars[f"B_{p}_{q}_0_1"] = solver.NumVar(0, 1, f"B_{p}_{q}_0_1")
-                vars[f"B_{p}_{q}_1_1"] = solver.NumVar(0, 1, f"B_{p}_{q}_1_1")
-
-        # Create constraints
-        for p in range(n):
-            for q in range(p + 1, n):
-                solver.Add(
-                    vars[f"B_{p}_{q}_1_0"]
-                    + vars[f"B_{p}_{q}_0_1"]
-                    + vars[f"B_{p}_{q}_1_1"]
-                    <= 2
-                )
-
-                for i in range(m):
-                    solver.Add(
-                        vars[f"x_{i}_{p}"] - vars[f"x_{i}_{q}"]
-                        <= vars[f"B_{p}_{q}_1_0"]
-                    )
-                    solver.Add(
-                        -vars[f"x_{i}_{p}"] + vars[f"x_{i}_{q}"]
-                        <= vars[f"B_{p}_{q}_0_1"]
-                    )
-                    solver.Add(
-                        vars[f"x_{i}_{p}"] + vars[f"x_{i}_{q}"]
-                        <= 1 + vars[f"B_{p}_{q}_1_1"]
-                    )
-
-        # Define objective function
-        objective = solver.Objective()
-        for i in range(m):
-            for j in range(n):
-                if self.matrix[i, j] == 0:  # only count flips of 0→1
-                    objective.SetCoefficient(vars[f"x_{i}_{j}"], 1)
-        objective.SetMinimization()
+        solver = get_linear_program(self.matrix)
 
         # Record model preparation time
         model_time = time.time() - model_time_start
@@ -889,6 +840,8 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
             return None
 
         # Round solution to get a binary matrix
+        m = self.matrix.shape[0]  # rows
+        n = self.matrix.shape[1]  # cols
         solution = np.copy(self.matrix)
         for i in range(m):
             for j in range(n):
@@ -940,7 +893,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         model_time_start = time.time()
 
         # Create solver
-        solver = pywraplp.Solver.CreateSolver("GLOP")
+        solver = get_linear_program(self.matrix)
 
         # Get dimensions
         m = current_matrix.shape[0]  # rows
@@ -1284,4 +1237,3 @@ def bnb_solve(matrix, bounding_algorithm, na_value=None):
         returned_matrix = np.zeros((1, 1))
     # print("results1.nodes:  ", results1.nodes)
     return returned_matrix, results1.termination_condition
-
