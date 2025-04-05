@@ -25,14 +25,15 @@
 # Last Update: Jan 20, 2020
 # =========================================================================================
 
-import time
 import copy
-import pybnb
 import itertools
+import time
+
 import numpy as np
+import pybnb
 import scipy.sparse as sp
-from pysat.formula import WCNF
 from pysat.examples.rc2 import RC2
+from pysat.formula import WCNF
 
 rec_num = 0
 
@@ -40,7 +41,10 @@ rec_num = 0
 def solve_by_BnB(matrix_in, na_value, which_bounding):
     bounding_algs = [
         TwoSatBounding(
-            heuristic_setting=None, n_levels=2, compact_formulation=False, na_value=na_value,
+            heuristic_setting=None,
+            n_levels=2,
+            compact_formulation=False,
+            na_value=na_value,
         ),  # Real Data
         TwoSatBounding(
             heuristic_setting=[True, True, False, True, True],
@@ -90,7 +94,9 @@ def zero_or_na(vec, na_value=-1):
     return np.logical_or(vec == 0, vec == na_value)
 
 
-def make_sure_variable_exists(memory_matrix, row, col, num_var_F, map_f2ij, var_list, na_value):
+def make_sure_variable_exists(
+    memory_matrix, row, col, num_var_F, map_f2ij, var_list, na_value
+):
     if memory_matrix[row, col] < 0:
         num_var_F += 1
         map_f2ij[num_var_F] = (row, col)
@@ -103,18 +109,23 @@ def get_effective_matrix(I, delta01, delta_na_to_1, change_na_to_0=False):
     x = np.array(I + delta01, dtype=np.int8)
     if delta_na_to_1 is not None:
         na_indices = delta_na_to_1.nonzero()
-        x[
-            na_indices
-        ] = 1  # should have been (but does not accept): x[na_indices] = delta_na_to_1[na_indices]
+        x[na_indices] = (
+            1  # should have been (but does not accept): x[na_indices] = delta_na_to_1[na_indices]
+        )
     if change_na_to_0:
         x[np.logical_and(x != 0, x != 1)] = 0
     return x
 
 
 def make_twosat_model_from_np(
-    constraints, F, zero_vars, na_vars, eps=None, heuristic_setting=None, compact_formulation=True,
+    constraints,
+    F,
+    zero_vars,
+    na_vars,
+    eps=None,
+    heuristic_setting=None,
+    compact_formulation=True,
 ):
-
     if eps is None:
         eps = 1 / (len(zero_vars) + len(na_vars))
 
@@ -198,7 +209,10 @@ def twosat_solver(
     start_time = time.time()
 
     return_value = make_constraints_np_matrix(
-        matrix, n_levels=n_levels, na_value=na_value, compact_formulation=compact_formulation,
+        matrix,
+        n_levels=n_levels,
+        na_value=na_value,
+        compact_formulation=compact_formulation,
     )
     model_time += time.time() - start_time
     F, map_f2ij, zero_vars, na_vars, hard_constraints, col_pair = (
@@ -242,7 +256,9 @@ def twosat_solver(
         output_matrix = output_matrix.astype(np.int8)
 
         for var_ind in range(len(variables)):
-            if 0 < variables[var_ind] and variables[var_ind] in map_f2ij:  # if 0 or 2 make it one
+            if (
+                0 < variables[var_ind] and variables[var_ind] in map_f2ij
+            ):  # if 0 or 2 make it one
                 output_matrix[map_f2ij[variables[var_ind]]] = 1
                 if matrix[map_f2ij[variables[var_ind]]] != na_value:
                     lower_bound += 1
@@ -307,7 +323,9 @@ def make_constraints_np_matrix(
     assert 1 <= n_levels <= 2, "not implemented yet"
 
     # means none of scarification ideas have been used
-    complete_version = all_None(row_coloring, col_coloring, probability_threshold, fn_rate)
+    complete_version = all_None(
+        row_coloring, col_coloring, probability_threshold, fn_rate
+    )
 
     soft_cnst_num = 0
     hard_constraints = [[] for _ in range(n_levels)]  # an empty list each level
@@ -341,10 +359,14 @@ def make_constraints_np_matrix(
             if column_intersection[p, q]:  # p and q has intersection
                 # todo: check col_coloring here
                 r01 = np.nonzero(
-                    np.logical_and(zero_or_na(matrix[:, p], na_value=na_value), matrix[:, q] == 1)
+                    np.logical_and(
+                        zero_or_na(matrix[:, p], na_value=na_value), matrix[:, q] == 1
+                    )
                 )[0]
                 r10 = np.nonzero(
-                    np.logical_and(matrix[:, p] == 1, zero_or_na(matrix[:, q], na_value=na_value))
+                    np.logical_and(
+                        matrix[:, p] == 1, zero_or_na(matrix[:, q], na_value=na_value)
+                    )
                 )[0]
                 cost = min(len(r01), len(r10))
                 if cost > pair_cost:  # keep best pair to return as auxiliary info
@@ -361,7 +383,9 @@ def make_constraints_np_matrix(
                                 (a, p),
                                 (b, q),
                             ]:  # make sure the variables for this are made
-                                var_list = zero_vars if matrix[row, col] == 0 else na_vars
+                                var_list = (
+                                    zero_vars if matrix[row, col] == 0 else na_vars
+                                )
                                 num_var_F = make_sure_variable_exists(
                                     F, row, col, num_var_F, map_f2ij, var_list, na_value
                                 )
@@ -374,7 +398,9 @@ def make_constraints_np_matrix(
                         num_var_B += 1
                         for row_list, col, sign in zip((r01, r10), (p, q), (1, -1)):
                             for row in row_list:
-                                var_list = zero_vars if matrix[row, col] == 0 else na_vars
+                                var_list = (
+                                    zero_vars if matrix[row, col] == 0 else na_vars
+                                )
                                 num_var_F = make_sure_variable_exists(
                                     F, row, col, num_var_F, map_f2ij, var_list, na_value
                                 )
@@ -382,16 +408,20 @@ def make_constraints_np_matrix(
                                 # this will be translated to (Z_ap or (sign)B_pq)
             elif n_levels >= 2:
                 r01 = np.nonzero(
-                    np.logical_and(zero_or_na(matrix[:, p], na_value=na_value), matrix[:, q] == 1)
+                    np.logical_and(
+                        zero_or_na(matrix[:, p], na_value=na_value), matrix[:, q] == 1
+                    )
                 )[0]
                 r10 = np.nonzero(
-                    np.logical_and(matrix[:, p] == 1, zero_or_na(matrix[:, q], na_value=na_value))
+                    np.logical_and(
+                        matrix[:, p] == 1, zero_or_na(matrix[:, q], na_value=na_value)
+                    )
                 )[0]
                 cost = min(len(r01), len(r10))
                 if cost > 0:  # don't do anything if one of r01 or r10 is empty
                     if not compact_formulation:
                         # len(r01) * len(r10) * (len(r01) * len(r10)) many constraints will be added
-                        x = np.empty((r01.shape[0] + r10.shape[0], 2), dtype=np.int)
+                        x = np.empty((r01.shape[0] + r10.shape[0], 2), dtype=np.int64)
                         x[: len(r01), 0] = r01
                         x[: len(r01), 1] = p
                         x[-len(r10) :, 0] = r10
@@ -404,15 +434,19 @@ def make_constraints_np_matrix(
                                 (x[ind, 0], x[ind, 1]),
                             ]:  # make sure the variables for this are made
                                 # print(row, col)
-                                var_list = zero_vars if matrix[row, col] == 0 else na_vars
+                                var_list = (
+                                    zero_vars if matrix[row, col] == 0 else na_vars
+                                )
                                 num_var_F = make_sure_variable_exists(
                                     F, row, col, num_var_F, map_f2ij, var_list, na_value
                                 )
                             row = [[a, p], [b, q], [x[ind, 0], x[ind, 1]]]
-                            if not np.array_equal(row[0], row[2]) and not np.array_equal(
-                                row[1], row[2]
-                            ):
-                                hard_constraints[1].append([[a, p], [b, q], [x[ind, 0], x[ind, 1]]])
+                            if not np.array_equal(
+                                row[0], row[2]
+                            ) and not np.array_equal(row[1], row[2]):
+                                hard_constraints[1].append(
+                                    [[a, p], [b, q], [x[ind, 0], x[ind, 1]]]
+                                )
                     else:  #  if compact_formulation: 2(r01 + r10) will be added
                         # define two new C variable
                         c_pq0 = C_vars_offset + num_var_C
@@ -421,7 +455,9 @@ def make_constraints_np_matrix(
                         num_var_C += 1
                         for row_list, col, sign in zip((r01, r10), (p, q), (1, -1)):
                             for row in row_list:
-                                var_list = zero_vars if matrix[row, col] == 0 else na_vars
+                                var_list = (
+                                    zero_vars if matrix[row, col] == 0 else na_vars
+                                )
                                 num_var_F = make_sure_variable_exists(
                                     F, row, col, num_var_F, map_f2ij, var_list, na_value
                                 )
@@ -436,10 +472,11 @@ def make_constraints_np_matrix(
 
     # todo: when using this make sure to put an if to say if the model is small and
     return_type = namedtuple(
-        "ReturnType", "F map_f2ij zero_vars na_vars hard_constraints col_pair complete_version",
+        "ReturnType",
+        "F map_f2ij zero_vars na_vars hard_constraints col_pair complete_version",
     )
     for ind in range(n_levels):
-        hard_constraints[ind] = np.array(hard_constraints[ind], dtype=np.int)
+        hard_constraints[ind] = np.array(hard_constraints[ind], dtype=np.int64)
     return return_type(
         F, map_f2ij, zero_vars, na_vars, hard_constraints, col_pair, complete_version
     )
@@ -448,7 +485,9 @@ def make_constraints_np_matrix(
 def is_conflict_free_gusfield_and_get_two_columns_in_coflicts(I, na_value):
     def sort_bin(a):
         b = np.transpose(a)
-        b_view = np.ascontiguousarray(b).view(np.dtype((np.void, b.dtype.itemsize * b.shape[1])))
+        b_view = np.ascontiguousarray(b).view(
+            np.dtype((np.void, b.dtype.itemsize * b.shape[1]))
+        )
         idx = np.argsort(b_view.ravel())[::-1]
         c = b[idx]
         return np.transpose(c), idx
@@ -577,7 +616,6 @@ class TwoSatBounding(BoundingAlgAbstract):
         self._times = {"model_preparation_time": 0, "optimization_time": 0}
 
     def get_init_node(self):
-
         # def twosat_solver(matrix, cluster_rows=False, cluster_cols=False, only_descendant_rows=False,
         #                   na_value=None, leave_nas_if_zero=False, return_lb=False, heuristic_setting=None,
         #                   n_levels=2, eps=0, compact_formulation=True):
@@ -601,7 +639,9 @@ class TwoSatBounding(BoundingAlgAbstract):
         self._times["optimization_time"] += opt_time
 
         nodedelta = sp.lil_matrix(np.logical_and(solution == 1, self.matrix == 0))
-        node_na_delta = sp.lil_matrix(np.logical_and(solution == 1, self.matrix == self.na_value))
+        node_na_delta = sp.lil_matrix(
+            np.logical_and(solution == 1, self.matrix == self.na_value)
+        )
         node.state = (
             nodedelta,
             True,
@@ -610,7 +650,9 @@ class TwoSatBounding(BoundingAlgAbstract):
             self.get_state(),
             node_na_delta,
         )
-        node.queue_priority = self.get_priority(till_here=-1, this_step=-1, after_here=-1, icf=True)
+        node.queue_priority = self.get_priority(
+            till_here=-1, this_step=-1, after_here=-1, icf=True
+        )
         self.next_lb = lb
         return node
 
@@ -713,15 +755,16 @@ class BnB(pybnb.Problem):
         self.boundingAlg = boundingAlg
         self.delta_na = None
         if self.has_na:
-            assert (
-                boundingAlg.na_support
-            ), "Input has N/A coordinates but bounding algorithm doesn't support it."
+            assert boundingAlg.na_support, (
+                "Input has N/A coordinates but bounding algorithm doesn't support it."
+            )
             self.delta_na = sp.lil_matrix(
                 I.shape, dtype=np.int8
             )  # the coordinates with na that are decided to be 1
-        (self.icf, self.colPair,) = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
-            self.I, na_value
-        )
+        (
+            self.icf,
+            self.colPair,
+        ) = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(self.I, na_value)
         self.boundingAlg.reset(I)
         self.node_to_add = self.boundingAlg.get_init_node()
         self.bound_value = self.boundingAlg.get_bound(self.delta)
@@ -774,9 +817,9 @@ class BnB(pybnb.Problem):
                 newnode.state[0].count_nonzero() == self.bound_value
             ):  # current_obj == lb => no need to explore
                 need_for_new_nodes = False
-            assert (
-                newnode.queue_priority is not None
-            ), "Right before adding a node its priority in the queue is not set!"
+            assert newnode.queue_priority is not None, (
+                "Right before adding a node its priority in the queue is not set!"
+            )
             yield newnode
 
         if need_for_new_nodes:
@@ -791,7 +834,9 @@ class BnB(pybnb.Problem):
                 col2 = np.array(current_matrix[:, colp], dtype=np.int8).reshape(-1)
                 rows01 = np.nonzero(np.logical_and(col1 == 0, col2 == 1))[0]
                 rows21 = np.nonzero(np.logical_and(col1 == self.na_value, col2 == 1))[0]
-                if len(rows01) + len(rows21) == 0:  # nothing has changed! Dont add new node
+                if (
+                    len(rows01) + len(rows21) == 0
+                ):  # nothing has changed! Dont add new node
                     continue
                 nodedelta[rows01, col] = 1
                 nf01 = nodedelta.count_nonzero()
@@ -814,7 +859,9 @@ class BnB(pybnb.Problem):
                     (
                         node_icf,
                         nodecol_pair,
-                    ) = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(x, self.na_value)
+                    ) = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
+                        x, self.na_value
+                    )
 
                 node_bound_value = max(self.bound_value, new_bound)
                 node.state = (
@@ -831,9 +878,9 @@ class BnB(pybnb.Problem):
                     after_here=new_bound - nf01,
                     icf=node_icf,
                 )
-                assert (
-                    node.queue_priority is not None
-                ), "Right before adding a node its priority in the queue is not set!"
+                assert node.queue_priority is not None, (
+                    "Right before adding a node its priority in the queue is not set!"
+                )
                 yield node
 
 
