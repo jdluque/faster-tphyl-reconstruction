@@ -823,7 +823,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         # Start timing model preparation
         model_time_start = time.time()
 
-        solver = get_linear_program(self.matrix)
+        solver, objective, vars = get_linear_program(self.matrix)
 
         # Record model preparation time
         model_time = time.time() - model_time_start
@@ -843,6 +843,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         m = self.matrix.shape[0]  # rows
         n = self.matrix.shape[1]  # cols
         solution = np.copy(self.matrix)
+        # TODO: Optimize `get_linear_program()` to not return `vars`, which are used below
         for i in range(m):
             for j in range(n):
                 if self.matrix[i, j] == 0 and vars[f"x_{i}_{j}"].solution_value() > 0.5:

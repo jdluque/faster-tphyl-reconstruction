@@ -1,7 +1,9 @@
 from ortools.linear_solver import pywraplp
 
 
-def get_linear_program(matrix) -> pywraplp.Solver:
+def get_linear_program(
+    matrix,
+) -> tuple[pywraplp.Solver, pywraplp.Objective, dict]:
     solver = pywraplp.Solver.CreateSolver("GLOP")
 
     m = matrix.shape[0]  # rows
@@ -44,4 +46,4 @@ def get_linear_program(matrix) -> pywraplp.Solver:
         objective.SetCoefficient(var, 1)
     objective.SetMinimization()
 
-    return solver
+    return solver, objective, vars
