@@ -25,13 +25,15 @@
 # Last Update: Jan 20, 2020
 # =========================================================================================
 
+import copy
 import os
 import time
-import copy
+from argparse import ArgumentParser
+from datetime import datetime
+
 import numpy as np
 import pandas as pd
-from datetime import datetime
-from argparse import ArgumentParser
+
 from bnb import solve_by_BnB
 
 
@@ -89,8 +91,8 @@ def infer_na_value(x):
     vals.remove(0)
     vals.remove(1)
     if len(vals) > 0:
-        assert len(vals) == 1, "Unable to infer na: There are more than three values:" + repr(
-            all_vals
+        assert len(vals) == 1, (
+            "Unable to infer na: There are more than three values:" + repr(all_vals)
         )
         return vals.pop()
     return None
@@ -100,9 +102,9 @@ def draw_tree(filename):
     add_cells = True
 
     from collections import Counter
-    import pygraphviz as pyg
+
     import networkx as nx
-    from networkx.drawing.nx_agraph import graphviz_layout, to_agraph
+    from networkx.drawing.nx_agraph import to_agraph
 
     def contains(col1, col2):
         for i in range(len(col1)):
@@ -172,13 +174,15 @@ def draw_tree(filename):
         untilnow_mut = []
         sp = nx.shortest_path(G, cols, node)
         for i in range(len(sp) - 1):
-            untilnow_mut += G.get_edge_data(sp[i], sp[i + 1])["label"].split(splitter_mut)
+            untilnow_mut += G.get_edge_data(sp[i], sp[i + 1])["label"].split(
+                splitter_mut
+            )
         untilnow_cell = df.loc[
             (df[untilnow_mut] == 1).all(axis=1)
             & (df[[x for x in df.columns if x not in untilnow_mut]] == 0).all(axis=1)
         ].index
         if len(untilnow_cell) > 0:
-            clusters[node] = f'<b>{", ".join(untilnow_cell)}</b>'
+            clusters[node] = f"<b>{', '.join(untilnow_cell)}</b>"
         else:
             clusters[node] = "––"
 
@@ -209,7 +213,9 @@ def draw_tree(filename):
                 x = paths[i]
                 y = paths[i + 1]
                 num += len(G[x][y]["label"].split(splitter_mut))
-            G._node[node]["label"] = f"<[{node}]  " + G._node[node]["label"] + f"  ({num})>"
+            G._node[node]["label"] = (
+                f"<[{node}]  " + G._node[node]["label"] + f"  ({num})>"
+            )
         else:
             G._node[node]["label"] = f"<[{node}]  germ cells>"
 
@@ -222,7 +228,9 @@ def draw_tree(filename):
         a = a.most_common()
         lll = list(set([x.split(".")[0] for x in ll]))
         G.add_edge(u, v, label=splitter_mut.join(lll))
-        print(f"[{u}]->[{v}]: {' '.join(ll)}", file=open(f"{outputpath}.mutsAtEdges", "a"))
+        print(
+            f"[{u}]->[{v}]: {' '.join(ll)}", file=open(f"{outputpath}.mutsAtEdges", "a")
+        )
         G.add_edge(u, v, label=f" {len(ll)}")
 
     header = ""
@@ -279,7 +287,7 @@ if __name__ == "__main__":
         type=int,
         default=1,
         required=False,
-        help="Bounding algorithm (1, 2) [default: %(default)s]",
+        help="Bounding algorithm (1, 3) [default: %(default)s]",
     )
     optional.add_argument(
         "-t",
@@ -290,7 +298,7 @@ if __name__ == "__main__":
         help="Draw output tree with Graphviz [required Graphviz to be installed on the system]",
     )
     args = parser.parse_args()
-    
+
     df_input = pd.read_csv(args.i, delimiter="\t", index_col=0)
     df_input = df_input.replace("?", 3)
     df_input = df_input.astype(int)
