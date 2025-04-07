@@ -35,6 +35,7 @@ from pysat.formula import WCNF
 from pysat.examples.rc2 import RC2
 from ortools.linear_solver import pywraplp
 
+from helpers import is_conflict
 rec_num = 0
 
 
@@ -706,14 +707,6 @@ class TwoSatBounding(BoundingAlgAbstract):
                 return 0
         assert False, "get_priority did not return anything!"
 
-# Utility function to check if two columns have conflicts
-def is_conflict(X, p, q):
-    """Check if a columns p and q of X have conflicts."""
-    col_p = X[:, p]
-    col_q = X[:, q]
-    return np.any(col_p & col_q) and np.any(~col_p & col_q) and np.any(col_p & ~col_q)
-
-
 # TODO: Add an option for only conflict columns (saving the conflict cols)
 # TODO: Do I need to do deep copy instead of copy
 class LinearProgrammingBounding(BoundingAlgAbstract):
@@ -927,10 +920,10 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         objective_value = objective.Value()
         
         # Save extra info for branching decisions (TODO: Is this needed)
-        icf, col_pair = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(current_matrix, self.na_value)
+        is_conflict_free, conflict_col_pair = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(current_matrix, self.na_value)
         self._extraInfo = {
-            "icf": icf,
-            "one_pair_of_columns": col_pair
+            "icf": is_conflict_free,
+            "one_pair_of_columns": conflict_col_pair
         }
         
         # Return the bound (LP objective + existing flips)
