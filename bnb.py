@@ -894,59 +894,11 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         model_time_start = time.time()
 
         # Create solver
-        solver = get_linear_program(self.matrix)
+        solver, objective, vars = get_linear_program(self.matrix)
 
         # Get dimensions
         m = current_matrix.shape[0]  # rows
         n = current_matrix.shape[1]  # cols
-
-        # Create variables
-        vars = {}
-        for p in range(n):
-            for q in range(p + 1, n):
-                # if ColSelector is None or ColSelector.iloc[p, q]: # Check cols
-                vars[f"B_{p}_{q}_1_0"] = solver.NumVar(0, 1, f"B_{p}_{q}_1_0")  # (6)
-                vars[f"B_{p}_{q}_0_1"] = solver.NumVar(0, 1, f"B_{p}_{q}_0_1")  # (6)
-                vars[f"B_{p}_{q}_1_1"] = solver.NumVar(0, 1, f"B_{p}_{q}_1_1")  # (6)
-
-        for i in range(m):
-            for j in range(n):
-                vars[f"x_{i}_{j}"] = solver.NumVar(
-                    float(current_matrix[i, j]), 1, f"x_{i}_{j}"
-                )  # (7)
-
-        # Create constraints
-        for p in range(n):
-            for q in range(p + 1, n):
-                # if ColSelector is None or ColSelector.iloc[p, q]: # Check cols
-                solver.Add(
-                    vars[f"B_{p}_{q}_1_0"]
-                    + vars[f"B_{p}_{q}_0_1"]
-                    + vars[f"B_{p}_{q}_1_1"]
-                    <= 2
-                )  # (5)
-
-                for i in range(m):
-                    solver.Add(
-                        vars[f"x_{i}_{p}"] - vars[f"x_{i}_{q}"]
-                        <= vars[f"B_{p}_{q}_1_0"]
-                    )  # (2)
-                    solver.Add(
-                        -vars[f"x_{i}_{p}"] + vars[f"x_{i}_{q}"]
-                        <= vars[f"B_{p}_{q}_0_1"]
-                    )  # (3)
-                    solver.Add(
-                        vars[f"x_{i}_{p}"] + vars[f"x_{i}_{q}"]
-                        <= 1 + vars[f"B_{p}_{q}_1_1"]
-                    )  # (4)
-
-        # Define objective function
-        objective = solver.Objective()
-        for i in range(m):
-            for j in range(n):
-                if current_matrix[i, j] == 0:  # only count flips of 0→1
-                    objective.SetCoefficient(vars[f"x_{i}_{j}"], 1)  # (1)
-        objective.SetMinimization()
 
         # Record model preparation time
         model_time = time.time() - model_time_start
