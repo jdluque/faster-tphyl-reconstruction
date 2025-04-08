@@ -1,4 +1,3 @@
-import scipy.sparse as sp
 from ortools.linear_solver import pywraplp
 
 
@@ -48,26 +47,3 @@ def get_linear_program(
     objective.SetMinimization()
 
     return solver, objective, vars
-
-
-def get_linear_program_from_delta(
-    solver: pywraplp.Solver, vars: dict[str, pywraplp.Variable], delta: sp.lil_matrix
-) -> tuple[pywraplp.Solver, pywraplp.Objective]:
-    """Neutralize each LP variable corresponding to a flipped bit in delta by
-    making its lower bound 1.
-    """
-    # Neutralize the variables flipped by delta
-    for i, j in zip(*delta.nonzero()):
-        vars[f"x_{i}_{j}"].SetLb(1)
-
-    solver.Clear()
-    solver.Solve()
-
-    objective = solver.Objective()
-
-    # TODO: Ensure this works e.g., that resetting this here does not
-    # Un-neutralize the variables flipped by delta
-    for i, j in zip(*delta.nonzero()):
-        vars[f"x_{i}_{j}"].SetLb(0)
-
-    return solver, objective
