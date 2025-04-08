@@ -36,7 +36,7 @@ from ortools.linear_solver import pywraplp
 from pysat.examples.rc2 import RC2
 from pysat.formula import WCNF
 
-from linear_programming import get_linear_program, get_linear_program_from_delta
+from linear_programming import get_linear_program
 
 rec_num = 0
 
