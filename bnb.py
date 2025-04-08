@@ -36,7 +36,7 @@ from ortools.linear_solver import pywraplp
 from pysat.examples.rc2 import RC2
 from pysat.formula import WCNF
 
-from linear_programming import get_linear_program, get_linear_program_from_delta
+from linear_programming import get_linear_program
 
 rec_num = 0
 
@@ -831,7 +831,10 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         # TODO: Optimize `get_linear_program()` to not return `vars`, which are used below
         for i in range(m):
             for j in range(n):
-                if self.matrix[i, j] == 0 and vars[f"x_{i}_{j}"].solution_value() > 0.5:
+                if (
+                    self.matrix[i, j] == 0
+                    and vars[f"x_{i}_{j}"].solution_value() >= 0.5
+                ):
                     solution[i, j] = 1
 
         # Check if the solution is conflict-free
@@ -880,9 +883,11 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
 
         # Create solver
         # Instead of getting a brand new linear_program, just update the existing one.
-        solver, objective = get_linear_program_from_delta(
-            self.linear_program, self.linear_program_vars, delta
-        )
+        ## TODO: Switch to linear program recycler get_linear_program_from_delta
+        solver, objective, vars = get_linear_program(current_matrix)
+        # solver, objective = get_linear_program_from_delta(
+        #     self.linear_program, self.linear_program_vars, delta
+        # )
 
         # Record model preparation time
         model_time = time.time() - model_time_start
