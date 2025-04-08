@@ -36,7 +36,7 @@ from ortools.linear_solver import pywraplp
 from pysat.examples.rc2 import RC2
 from pysat.formula import WCNF
 
-from linear_programming import get_linear_program
+from linear_programming import get_linear_program, get_linear_program_from_delta
 
 rec_num = 0
 
@@ -762,6 +762,9 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
             na_value: Value representing missing data in the matrix
         """
         self.matrix = None  # Input Matrix
+        # Linear Program solver and variables
+        self.linear_program = None
+        self.linear_program_vars = None
         self._extra_info = None  # Additional information from bounding
         self._extraInfo = {}  # For compatibility with the abstract class
         self._times = {}  # Store timing information
@@ -804,6 +807,8 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         model_time_start = time.time()
 
         solver, objective, vars = get_linear_program(self.matrix)
+        self.linear_program = solver
+        self.linear_program_vars = vars
 
         # Record model preparation time
         model_time = time.time() - model_time_start
@@ -874,11 +879,10 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         model_time_start = time.time()
 
         # Create solver
-        solver, objective, vars = get_linear_program(self.matrix)
-
-        # Get dimensions
-        m = current_matrix.shape[0]  # rows
-        n = current_matrix.shape[1]  # cols
+        # Instead of getting a brand new linear_program, just update the existing one.
+        solver, objective = get_linear_program_from_delta(
+            self.linear_program, self.linear_program_vars, delta
+        )
 
         # Record model preparation time
         model_time = time.time() - model_time_start
@@ -1115,11 +1119,10 @@ class BnB(pybnb.Problem):
                         nodecol_pair = extra_info["one_pair_of_columns"]
                 if node_icf is None:
                     x = get_effective_matrix(self.I, nodedelta, node_na_delta)
-                    (
-                        node_icf,
-                        nodecol_pair,
-                    ) = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
-                        x, self.na_value
+                    node_icf, nodecol_pair = (
+                        is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
+                            x, self.na_value
+                        )
                     )
 
                 node_bound_value = max(self.bound_value, new_bound)
@@ -1145,7 +1148,7 @@ class BnB(pybnb.Problem):
 
 def bnb_solve(matrix, bounding_algorithm, na_value=None):
     problem1 = BnB(matrix, bounding_algorithm, na_value=na_value)
-    solver = pybnb.solver.Solver()
+    solver = pybnb.Solver()
     results1 = solver.solve(problem1, queue_strategy="custom", log=None)
     if results1.solution_status != "unknown":
         returned_delta = results1.best_node.state[0]
