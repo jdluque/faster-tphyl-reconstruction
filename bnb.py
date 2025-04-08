@@ -885,9 +885,6 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         # Instead of getting a brand new linear_program, just update the existing one.
         ## TODO: Switch to linear program recycler get_linear_program_from_delta
         solver, objective, vars = get_linear_program(current_matrix)
-        # solver, objective = get_linear_program_from_delta(
-        #     self.linear_program, self.linear_program_vars, delta
-        # )
 
         # Record model preparation time
         model_time = time.time() - model_time_start
@@ -1150,6 +1147,10 @@ class BnB(pybnb.Problem):
                 )
                 yield node
 
+    def notify_new_best_node(self, node, current):
+        bound = node.state[3]
+        print("New best node with bound: ", bound)
+
 
 def bnb_solve(matrix, bounding_algorithm, na_value=None):
     problem1 = BnB(matrix, bounding_algorithm, na_value=na_value)
@@ -1164,4 +1165,14 @@ def bnb_solve(matrix, bounding_algorithm, na_value=None):
     else:
         returned_matrix = np.zeros((1, 1))
     # print("results1.nodes:  ", results1.nodes)
+    print(f"{problem1.boundingAlg.num_lower_bounds=}")
+    num_lbs = problem1.boundingAlg.num_lower_bounds
+    avg_model_prep_time = (
+        model_prep_time := problem1.boundingAlg._times["model_preparation_time"]
+    ) / num_lbs
+    avg_model_opt_time = (
+        model_opt_time := problem1.boundingAlg._times["optimization_time"]
+    ) / num_lbs
+    print(f"{model_prep_time=:.5f} with {avg_model_prep_time=:.5f}")
+    print(f"{model_opt_time=:.5f} with {avg_model_opt_time=:.5f}")
     return returned_matrix, results1.termination_condition
