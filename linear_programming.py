@@ -1,23 +1,23 @@
 import numpy as np
-from ortools.linear_solver import pywraplp
+import scipy.sparse as sp
+from ortools.linear_solver.python.model_builder import ModelBuilder
 
 
 def get_linear_program(
     matrix,
-) -> tuple[pywraplp.Solver, pywraplp.Objective, dict]:
-    solver = pywraplp.Solver.CreateSolver("GLOP")
+) -> tuple[ModelBuilder, dict]:
+    model = ModelBuilder()
+    # solver = pywraplp.Solver.CreateSolver("GLOP")
     # WARN: Can use type np.bool only because there are no na values
     matrix = matrix.astype(np.bool)
     m, n = matrix.shape
 
     # Create variables
     vars = {}
-    for i in range(m):
-        for j in range(n):
-            # Only matrix zeros should create variables
-            if not matrix[i, j]:
-                # NOTE: Using infinity _could_ lead to optimizations. It is unclear if it does in our particular case.
-                vars[f"x_{i}_{j}"] = solver.NumVar(0, solver.infinity(), f"x_{i}_{j}")
+    for flat_ix, (i, j) in enumerate(zip(*(0 == matrix).nonzero())):
+        # NOTE: Using infinity _could_ lead to optimizations. It is unclear if it does in our particular case.
+        model.new_var(0, 1, False, f"x_{i}_{j}")
+        vars[(i, j)] = flat_ix
 
     # Create constraints
     for p in range(n):
@@ -31,11 +31,30 @@ def get_linear_program(
             for r1 in zero_ones.nonzero()[0]:
                 for r2 in one_zeros.nonzero()[0]:
                     # For every 10 and 01 in conflict, at least one is (fractionally) flipped
-                    solver.Add(vars[f"x_{r1}_{p}"] + vars[f"x_{r2}_{q}"] >= 1)
-    # All created variables are correspond to zeros in the matrix
-    objective = solver.Objective()
-    for var in vars.values():
-        objective.SetCoefficient(var, 1)
-    objective.SetMinimization()
+                    left_zero = model.var_from_index(vars[r1, p])
+                    right_zero = model.var_from_index(vars[r2, q])
+                    model.add_linear_constraint(left_zero + right_zero, 1)
 
-    return solver, objective, vars
+    # All created variables are correspond to zeros in the matrix
+    model.minimize(sum(model.var_from_index(i) for i in range(len(vars))))
+
+    return model, vars
+
+
+def get_linear_program_from_delta(
+    matrix: np.ndarray,
+    delta: sp.lil_matrix,
+    model: ModelBuilder,
+    vars: dict,
+) -> ModelBuilder:
+    """Neutralize each LP variable corresponding to a flipped bit in delta by
+    making its lower bound 1.
+    """
+    # Neutralize variables flipped thus far
+    for i, j in zip(*delta.nonzero()):
+        var_ix = vars[(i, j)]
+        model.var_from_index(var_ix).lower_bound = 1
+        # TODO: Remove this check before deploying
+        assert model.var_from_index(var_ix).lower_bound == 1
+
+    return model

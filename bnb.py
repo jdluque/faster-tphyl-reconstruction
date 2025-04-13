@@ -26,17 +26,21 @@
 # =========================================================================================
 
 import copy
+import cProfile
 import itertools
+import pstats
 import time
+from pstats import SortKey
 
 import numpy as np
 import pybnb
 import scipy.sparse as sp
 from ortools.linear_solver import pywraplp
+from ortools.linear_solver.python import model_builder
 from pysat.examples.rc2 import RC2
 from pysat.formula import WCNF
 
-from linear_programming import get_linear_program
+from linear_programming import get_linear_program, get_linear_program_from_delta
 
 rec_num = 0
 
@@ -601,6 +605,7 @@ class TwoSatBounding(BoundingAlgAbstract):
         self.cluster_rows = cluster_rows
         self.cluster_cols = cluster_cols
         self.only_descendant_rows = only_descendant_rows
+        self.num_lower_bounds = 1
 
     def get_name(self):
         params = [
@@ -726,6 +731,12 @@ class TwoSatBounding(BoundingAlgAbstract):
             "one_pair_of_columns": col_pair,
         }
         ret = result + delta.count_nonzero()
+        self.num_lower_bounds += 1
+        # If we have a precomputed bound from get_init_node, use it
+        if self.next_lb is not None:
+            lb = self.next_lb
+            self.next_lb = None
+            return lb
         return ret
 
     def get_priority(self, till_here, this_step, after_here, icf=False):
@@ -774,6 +785,9 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         self.priority_version = priority_version  # Controls node priority calculation
         self.model_state = None  # State to store/restore
 
+        # Debug variables
+        self.num_lower_bounds = 0
+
     def get_name(self):
         """Return a string identifier for this bounding algorithm."""
         params = [
@@ -805,9 +819,16 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
 
         # Start timing model preparation
         model_time_start = time.time()
-
-        solver, objective, vars = get_linear_program(self.matrix)
-        self.linear_program = solver
+        pr = cProfile.Profile()
+        pr.enable()
+        model, vars = get_linear_program(self.matrix)
+        self.linear_program = model
+        solver = model_builder.Solver("GLOP")
+        pr.disable()
+        with open("profile.txt", "w") as f:
+            sortby = SortKey.CUMULATIVE
+            ps = pstats.Stats(pr, stream=f).sort_stats(sortby)
+            ps.print_stats()
         self.linear_program_vars = vars
 
         # Record model preparation time
@@ -816,7 +837,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
 
         # Solve and time optimization
         opt_time_start = time.time()
-        status = solver.Solve()
+        status = solver.solve(model)
         opt_time = time.time() - opt_time_start
         self._times["optimization_time"] += opt_time
 
@@ -828,25 +849,24 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         m = self.matrix.shape[0]  # rows
         n = self.matrix.shape[1]  # cols
         solution = np.copy(self.matrix)
-        # TODO: Optimize `get_linear_program()` to not return `vars`, which are used below
-        for i in range(m):
-            for j in range(n):
-                if (
-                    self.matrix[i, j] == 0
-                    and vars[f"x_{i}_{j}"].solution_value() >= 0.5
-                ):
-                    solution[i, j] = 1
+        # TODO: Will need to add a check here to ensure the matrix is conflict free. Else re-run the LP and round the new solution.
+        for i, j in vars:
+            # NOTE: Some solvers may give 0.5 - epsilon
+            if solver.value(model.var_from_index(vars[i, j])) >= 0.499:
+                solution[i, j] = 1
 
         # Check if the solution is conflict-free
         icf, col_pair = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
             solution, self.na_value
         )
+        assert icf, "Initial node must be conflict free"
 
         # Create delta matrix (flips of 0→1)
         nodedelta = sp.lil_matrix(np.logical_and(solution == 1, self.matrix == 0))
 
         # Store the LP objective value for future bound calculations
-        self.next_lb = objective.Value()
+        self.next_lb = solver.objective_value
+        print("In init node: objective_value=", self.next_lb)
 
         # Set node state
         node.state = (
@@ -875,24 +895,32 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         Returns:
             Lower bound value
         """
+        # TODO: Remove this check prior to deploying
+        for i in range(delta.count_nonzero()):
+            assert self.linear_program.var_from_index(i).lower_bound == 0
         # Create effective matrix
         current_matrix = get_effective_matrix(self.matrix, delta, na_delta)
 
         # Start timing model preparation
         model_time_start = time.time()
 
-        # Create solver
-        # Instead of getting a brand new linear_program, just update the existing one.
-        ## TODO: Switch to linear program recycler get_linear_program_from_delta
-        solver, objective, vars = get_linear_program(current_matrix)
-
+        # Instead of getting a brand new linear_program, recycle the initial one
+        model = get_linear_program_from_delta(
+            current_matrix,
+            delta,
+            self.linear_program,
+            self.linear_program_vars,
+        )
         # Record model preparation time
         model_time = time.time() - model_time_start
         self._times["model_preparation_time"] += model_time
 
         # Solve and time optimization
         opt_time_start = time.time()
-        status = solver.Solve()
+
+        solver = model_builder.Solver("GLOP")
+        status = solver.solve(model)
+
         opt_time = time.time() - opt_time_start
         self._times["optimization_time"] += opt_time
 
@@ -902,8 +930,11 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
             )
             return float("inf")  # Return infinity as a bound
 
-        # Get objective value
-        objective_value = objective.Value()
+        objective_value = solver.objective_value
+        # Can clone the model -- or better yet -- set the lower bounds back to 0
+        for i, j in zip(*delta.nonzero()):
+            var_ix = self.linear_program_vars[(i, j)]
+            model.var_from_index(var_ix).lower_bound = 0
 
         # Save extra info for branching decisions (TODO: Is this needed)
         is_conflict_free, conflict_col_pair = (
@@ -916,8 +947,8 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
             "one_pair_of_columns": conflict_col_pair,
         }
 
-        # Return the bound (LP objective + existing flips)
-        return objective_value + delta.count_nonzero()
+        # Return the bound (LP objective includes existing flips)
+        return objective_value
 
     def get_bound(self, delta, na_delta=None):
         """Calculate a lower bound on the number of flips needed.
@@ -929,6 +960,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         Returns:
             Lower bound value
         """
+        self.num_lower_bounds += 1
         # If we have a precomputed bound from get_init_node, use it
         if self.next_lb is not None:
             lb = self.next_lb
