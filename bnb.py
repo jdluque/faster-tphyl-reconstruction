@@ -60,7 +60,8 @@ def solve_by_BnB(matrix_in, na_value, which_bounding):
             compact_formulation=True,
             na_value=na_value,
         ),  # Simulation
-        LinearProgrammingBounding(),  # Linear Programming
+        LinearProgrammingBounding("GLOP"),
+        LinearProgrammingBounding("PDLP"),
     ]
     result = bnb_solve(
         matrix_in, bounding_algorithm=bounding_algs[which_bounding], na_value=na_value
@@ -765,13 +766,14 @@ class TwoSatBounding(BoundingAlgAbstract):
 # TODO: Add an option for only conflict columns (saving the conflict cols)
 # TODO: Do I need to do deep copy instead of copy
 class LinearProgrammingBounding(BoundingAlgAbstract):
-    def __init__(self, priority_version=-1, na_value=None):
+    def __init__(self, solver_name, priority_version=-1, na_value=None):
         """Initialize the Linear Programming Bounding algorithm.
 
         Args:
             priority_version: Controls node priority in the branch and bound tree
             na_value: Value representing missing data in the matrix
         """
+        self.solver_name = solver_name  # LP solver
         self.matrix = None  # Input Matrix
         # Linear Program solver and variables
         self.linear_program = None
@@ -823,7 +825,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         pr.enable()
         model, vars = get_linear_program(self.matrix)
         self.linear_program = model
-        solver = model_builder.Solver("GLOP")
+        solver = model_builder.Solver(self.solver_name)
         pr.disable()
         with open("profile.txt", "w") as f:
             sortby = SortKey.CUMULATIVE
@@ -865,7 +867,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         nodedelta = sp.lil_matrix(np.logical_and(solution == 1, self.matrix == 0))
 
         # Store the LP objective value for future bound calculations
-        self.next_lb = solver.objective_value
+        self.next_lb = np.ceil(solver.objective_value)
         print("In init node: objective_value=", self.next_lb)
 
         # Set node state
@@ -918,7 +920,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         # Solve and time optimization
         opt_time_start = time.time()
 
-        solver = model_builder.Solver("GLOP")
+        solver = model_builder.Solver(self.solver_name)
         status = solver.solve(model)
 
         opt_time = time.time() - opt_time_start
@@ -948,7 +950,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         }
 
         # Return the bound (LP objective includes existing flips)
-        return objective_value
+        return np.ceil(objective_value)
 
     def get_bound(self, delta, na_delta=None):
         """Calculate a lower bound on the number of flips needed.

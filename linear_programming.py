@@ -7,7 +7,6 @@ def get_linear_program(
     matrix,
 ) -> tuple[ModelBuilder, dict]:
     model = ModelBuilder()
-    # solver = pywraplp.Solver.CreateSolver("GLOP")
     # WARN: Can use type np.bool only because there are no na values
     matrix = matrix.astype(np.bool)
     m, n = matrix.shape
