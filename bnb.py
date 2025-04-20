@@ -745,16 +745,16 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
 
         # Start timing model preparation
         model_time_start = time.time()
-        pr = cProfile.Profile()
-        pr.enable()
+        # pr = cProfile.Profile()
+        # pr.enable()
         model, vars = get_linear_program(self.matrix)
         self.linear_program = model
         solver = model_builder.Solver(self.solver_name)
-        pr.disable()
-        with open("profile.txt", "w") as f:
-            sortby = SortKey.CUMULATIVE
-            ps = pstats.Stats(pr, stream=f).sort_stats(sortby)
-            ps.print_stats()
+        # pr.disable()
+        # with open("profile.txt", "w") as f:
+        #     sortby = SortKey.CUMULATIVE
+        #     ps = pstats.Stats(pr, stream=f).sort_stats(sortby)
+        #     ps.print_stats()
         self.linear_program_vars = vars
 
         # Record model preparation time
