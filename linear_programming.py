@@ -30,7 +30,7 @@ def get_linear_program_gurobi(matrix) -> tuple[gp.Model, gp.tupledict]:
             for r1 in zero_ones.nonzero()[0]:
                 for r2 in one_zeros.nonzero()[0]:
                     # For every 10 and 01 in conflict, at least one is (fractionally) flipped
-                    model.add_linear_constraint(x[r1, p] + x[r2, q], 1)
+                    model.addLConstr(x[r1, p] + x[r2, q] >= 1)
     # All created variables are correspond to zeros in the matrix
     model.setObjective(gp.quicksum(x), gp.GRB.MINIMIZE)
 
