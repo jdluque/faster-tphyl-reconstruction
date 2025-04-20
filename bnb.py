@@ -26,11 +26,8 @@
 # =========================================================================================
 
 import copy
-import cProfile
 import itertools
-import pstats
 import time
-from pstats import SortKey
 
 import numpy as np
 import pybnb
