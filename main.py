@@ -304,6 +304,7 @@ if __name__ == "__main__":
     df_input = df_input.astype(int)
     matrix_input = df_input.values
     na_value = infer_na_value(matrix_input)
+    printf(f"{args=}")
     printf(f"Size: {matrix_input.shape}")
     printf(f"NAValue: {na_value}")
     printf(f"#Zeros: {len(np.where(matrix_input == 0)[0])}")
