@@ -1,6 +1,40 @@
+import gurobipy as gp
 import numpy as np
 import scipy.sparse as sp
 from ortools.linear_solver.python.model_builder import ModelBuilder
+
+
+def get_linear_program_gurobi(matrix) -> tuple[gp.Model, gp.tupledict]:
+    # WARN: Can use type np.bool only because there are no na values
+    matrix = matrix.astype(np.bool)
+    m, n = matrix.shape
+
+    model = gp.Model()
+    # Create variables
+    vars = {}
+    for i, j in zip(*(~matrix).nonzero()):
+        # NOTE: Using infinity could_ lead to optimizations. It is unclear if it does in our particular case.
+        vars[(i, j)] = model.addVar(name=f"x_{i}_{j}")
+    zero_coords = zip(*(~matrix).nonzero())
+    x = model.addVars(zero_coords)
+
+    # Create constraints
+    for p in range(n):
+        for q in range(p + 1, n):
+            col_p, col_q = matrix[:, p], matrix[:, q]
+            has_one_one = np.any(np.logical_and(col_p, col_q))
+            if not has_one_one:
+                continue
+            zero_ones = np.logical_and(~col_p, col_q)
+            one_zeros = np.logical_and(col_p, ~col_q)
+            for r1 in zero_ones.nonzero()[0]:
+                for r2 in one_zeros.nonzero()[0]:
+                    # For every 10 and 01 in conflict, at least one is (fractionally) flipped
+                    model.add_linear_constraint(x[r1, p] + x[r2, q], 1)
+    # All created variables are correspond to zeros in the matrix
+    model.setObjective(gp.quicksum(x), gp.GRB.MINIMIZE)
+
+    return model, x
 
 
 def get_linear_program(

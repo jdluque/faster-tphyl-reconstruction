@@ -40,7 +40,10 @@ from ortools.linear_solver.python import model_builder
 from pysat.examples.rc2 import RC2
 from pysat.formula import WCNF
 
+from abstract import BoundingAlgAbstract
 from linear_programming import get_linear_program, get_linear_program_from_delta
+from LPBoundGurobi import LinearProgrammingBoundingGurobi
+from utils import is_conflict_free_gusfield_and_get_two_columns_in_coflicts
 
 rec_num = 0
 
@@ -62,6 +65,7 @@ def solve_by_BnB(matrix_in, na_value, which_bounding):
         ),  # Simulation
         LinearProgrammingBounding("GLOP"),
         LinearProgrammingBounding("PDLP"),
+        LinearProgrammingBoundingGurobi(),
     ]
     result = bnb_solve(
         matrix_in, bounding_algorithm=bounding_algs[which_bounding], na_value=na_value
@@ -490,86 +494,6 @@ def make_constraints_np_matrix(
     return return_type(
         F, map_f2ij, zero_vars, na_vars, hard_constraints, col_pair, complete_version
     )
-
-
-def is_conflict_free_gusfield_and_get_two_columns_in_coflicts(I, na_value):
-    def sort_bin(a):
-        b = np.transpose(a)
-        b_view = np.ascontiguousarray(b).view(
-            np.dtype((np.void, b.dtype.itemsize * b.shape[1]))
-        )
-        idx = np.argsort(b_view.ravel())[::-1]
-        c = b[idx]
-        return np.transpose(c), idx
-
-    Ip = I.copy()
-    Ip[Ip == na_value] = 0
-    O, idx = sort_bin(Ip)
-    # TODO: delete duplicate columns
-    # print(O, '\n')
-    Lij = np.zeros(O.shape, dtype=int)
-    for i in range(O.shape[0]):
-        maxK = 0
-        for j in range(O.shape[1]):
-            if O[i, j] == 1:
-                Lij[i, j] = maxK
-                maxK = j + 1
-    # print(Lij, '\n')
-    Lj = np.amax(Lij, axis=0)
-    # print(Lj, '\n')
-    for i in range(O.shape[0]):
-        for j in range(O.shape[1]):
-            if O[i, j] == 1:
-                if Lij[i, j] != Lj[j]:
-                    return False, (idx[j], idx[Lj[j] - 1])
-    return True, (None, None)
-
-
-class BoundingAlgAbstract:
-    def __init__(self):
-        self.matrix = None
-        self._extra_info = None
-        self._extraInfo = {}
-        self._times = {}
-        self.na_support = False
-        pass
-
-    def reset(self, matrix):
-        raise NotImplementedError("The method not implemented")
-
-    def get_bound(self, delta):
-        """
-        This bound should include the flips done so far too
-        delta: a sparse matrix with fliped ones
-        """
-        raise NotImplementedError("The method not implemented")
-
-    def get_name(self):
-        return type(self).__name__
-
-    def get_state(self):
-        return None
-
-    def set_state(self, state):
-        assert state is None
-        pass
-
-    def get_extra_info(self):
-        """
-        Some bounding algorithms can provide extra information after calling bounding.
-        E.g.,
-        return {"icf":True, "bestPair":(a,b)}
-        """
-        return copy.copy(self._extraInfo)
-
-    def get_priority(self, till_here, this_step, after_here, icf=False):
-        return -after_here
-
-    def get_times(self):
-        return self._times
-
-    def get_init_node(self):
-        return None
 
 
 class TwoSatBounding(BoundingAlgAbstract):
