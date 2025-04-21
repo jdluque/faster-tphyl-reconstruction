@@ -44,7 +44,7 @@ def get_linear_program(
     vars = {}
     for i, j in zip(*(~matrix).nonzero()):
         # NOTE: Using infinity _could_ lead to optimizations. It is unclear if it does in our particular case.
-        vars[(i, j)] = model.new_var(0, 1, False, f"x_{i}_{j}")
+        vars[i, j] = model.new_var(0, 1, False, None)
 
     # Create constraints
     for p in range(n):
