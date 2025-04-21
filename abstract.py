@@ -1,3 +1,8 @@
+import copy
+
+import pybnb
+
+
 class BoundingAlgAbstract:
     def __init__(self):
         self.matrix = None
@@ -41,5 +46,5 @@ class BoundingAlgAbstract:
     def get_times(self):
         return self._times
 
-    def get_init_node(self):
+    def get_init_node(self) -> None | pybnb.Node:
         return None

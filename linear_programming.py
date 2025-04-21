@@ -1,6 +1,6 @@
 import gurobipy as gp
 import numpy as np
-from ortools.linear_solver.python.model_builder import ModelBuilder
+from ortools.linear_solver.python.model_builder import ModelBuilder, Variable
 
 
 def get_linear_program_gurobi(matrix) -> tuple[gp.Model, gp.tupledict]:
@@ -34,7 +34,7 @@ def get_linear_program_gurobi(matrix) -> tuple[gp.Model, gp.tupledict]:
 
 def get_linear_program(
     matrix,
-) -> tuple[ModelBuilder, dict]:
+) -> tuple[ModelBuilder, dict[tuple[int, int], Variable]]:
     model = ModelBuilder()
     # WARN: Can use type np.bool only because there are no na values
     matrix = matrix.astype(np.bool)
