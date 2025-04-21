@@ -26,21 +26,20 @@
 # =========================================================================================
 
 import copy
-import cProfile
 import itertools
-import pstats
 import time
-from pstats import SortKey
 
 import numpy as np
 import pybnb
 import scipy.sparse as sp
-from ortools.linear_solver import pywraplp
 from ortools.linear_solver.python import model_builder
 from pysat.examples.rc2 import RC2
 from pysat.formula import WCNF
 
-from linear_programming import get_linear_program, get_linear_program_from_delta
+from abstract import BoundingAlgAbstract
+from linear_programming import get_linear_program
+from LPBoundGurobi import LinearProgrammingBoundingGurobi
+from utils import is_conflict_free_gusfield_and_get_two_columns_in_coflicts
 
 rec_num = 0
 
@@ -62,6 +61,7 @@ def solve_by_BnB(matrix_in, na_value, which_bounding):
         ),  # Simulation
         LinearProgrammingBounding("GLOP"),
         LinearProgrammingBounding("PDLP"),
+        LinearProgrammingBoundingGurobi(),
     ]
     result = bnb_solve(
         matrix_in, bounding_algorithm=bounding_algs[which_bounding], na_value=na_value
@@ -492,86 +492,6 @@ def make_constraints_np_matrix(
     )
 
 
-def is_conflict_free_gusfield_and_get_two_columns_in_coflicts(I, na_value):
-    def sort_bin(a):
-        b = np.transpose(a)
-        b_view = np.ascontiguousarray(b).view(
-            np.dtype((np.void, b.dtype.itemsize * b.shape[1]))
-        )
-        idx = np.argsort(b_view.ravel())[::-1]
-        c = b[idx]
-        return np.transpose(c), idx
-
-    Ip = I.copy()
-    Ip[Ip == na_value] = 0
-    O, idx = sort_bin(Ip)
-    # TODO: delete duplicate columns
-    # print(O, '\n')
-    Lij = np.zeros(O.shape, dtype=int)
-    for i in range(O.shape[0]):
-        maxK = 0
-        for j in range(O.shape[1]):
-            if O[i, j] == 1:
-                Lij[i, j] = maxK
-                maxK = j + 1
-    # print(Lij, '\n')
-    Lj = np.amax(Lij, axis=0)
-    # print(Lj, '\n')
-    for i in range(O.shape[0]):
-        for j in range(O.shape[1]):
-            if O[i, j] == 1:
-                if Lij[i, j] != Lj[j]:
-                    return False, (idx[j], idx[Lj[j] - 1])
-    return True, (None, None)
-
-
-class BoundingAlgAbstract:
-    def __init__(self):
-        self.matrix = None
-        self._extra_info = None
-        self._extraInfo = {}
-        self._times = {}
-        self.na_support = False
-        pass
-
-    def reset(self, matrix):
-        raise NotImplementedError("The method not implemented")
-
-    def get_bound(self, delta):
-        """
-        This bound should include the flips done so far too
-        delta: a sparse matrix with fliped ones
-        """
-        raise NotImplementedError("The method not implemented")
-
-    def get_name(self):
-        return type(self).__name__
-
-    def get_state(self):
-        return None
-
-    def set_state(self, state):
-        assert state is None
-        pass
-
-    def get_extra_info(self):
-        """
-        Some bounding algorithms can provide extra information after calling bounding.
-        E.g.,
-        return {"icf":True, "bestPair":(a,b)}
-        """
-        return copy.copy(self._extraInfo)
-
-    def get_priority(self, till_here, this_step, after_here, icf=False):
-        return -after_here
-
-    def get_times(self):
-        return self._times
-
-    def get_init_node(self):
-        return None
-
-
 class TwoSatBounding(BoundingAlgAbstract):
     def __init__(
         self,
@@ -633,6 +553,7 @@ class TwoSatBounding(BoundingAlgAbstract):
         #     pass
 
         node = pybnb.Node()
+        init_node_time = time.time()
         solution, model_time, opt_time, lb = twosat_solver(
             self.matrix,
             cluster_rows=self.cluster_rows,
@@ -650,6 +571,10 @@ class TwoSatBounding(BoundingAlgAbstract):
         self._times["optimization_time"] += opt_time
 
         nodedelta = sp.lil_matrix(np.logical_and(solution == 1, self.matrix == 0))
+        init_node_time = time.time() - init_node_time
+        # assert False, (
+        #     f"next lower bound {lb} with found initial node in {init_node_time} with {nodedelta.count_nonzero()} flips"
+        # )
         node_na_delta = sp.lil_matrix(
             np.logical_and(solution == 1, self.matrix == self.na_value)
         )
@@ -819,55 +744,70 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         """
         node = pybnb.Node()
 
-        # Start timing model preparation
+        # Matrix to become conflict free
+        current_matrix = np.copy(self.matrix)
+
+        init_node_time = time.time()
         model_time_start = time.time()
-        pr = cProfile.Profile()
-        pr.enable()
-        model, vars = get_linear_program(self.matrix)
-        self.linear_program = model
-        solver = model_builder.Solver(self.solver_name)
-        pr.disable()
-        with open("profile.txt", "w") as f:
-            sortby = SortKey.CUMULATIVE
-            ps = pstats.Stats(pr, stream=f).sort_stats(sortby)
-            ps.print_stats()
-        self.linear_program_vars = vars
 
-        # Record model preparation time
-        model_time = time.time() - model_time_start
-        self._times["model_preparation_time"] += model_time
-
-        # Solve and time optimization
-        opt_time_start = time.time()
-        status = solver.solve(model)
-        opt_time = time.time() - opt_time_start
-        self._times["optimization_time"] += opt_time
-
-        if status != pywraplp.Solver.OPTIMAL:
-            # If no optimal solution, return None
-            return None
-
-        # Round solution to get a binary matrix
-        m = self.matrix.shape[0]  # rows
-        n = self.matrix.shape[1]  # cols
-        solution = np.copy(self.matrix)
-        # TODO: Will need to add a check here to ensure the matrix is conflict free. Else re-run the LP and round the new solution.
-        for i, j in vars:
-            # NOTE: Some solvers may give 0.5 - epsilon
-            if solver.value(model.var_from_index(vars[i, j])) >= 0.499:
-                solution[i, j] = 1
-
-        # Check if the solution is conflict-free
-        icf, col_pair = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
-            solution, self.na_value
+        self.linear_program, self.linear_program_vars = get_linear_program(
+            current_matrix
         )
-        assert icf, "Initial node must be conflict free"
+        model, vars = self.linear_program, self.linear_program_vars
+        while True:
+            # Start timing model preparation
+            if self.linear_program is None:
+                self.linear_program = model
+                self.linear_program_vars = vars
 
+            solver = model_builder.Solver(self.solver_name)
+
+            # Record model preparation time
+            model_time = time.time() - model_time_start
+            self._times["model_preparation_time"] += model_time
+
+            # Solve and time optimization
+            opt_time_start = time.time()
+            status = solver.solve(model)
+            opt_time = time.time() - opt_time_start
+            self._times["optimization_time"] += opt_time
+
+            if status != model_builder.SolveStatus.OPTIMAL:
+                # If no optimal solution, return None
+                return None
+
+            # Store the LP objective value for future bound calculations
+            if self.next_lb is None:
+                self.next_lb = np.ceil(solver.objective_value)
+                print(f"Lower bound {self.next_lb}")
+
+            # Round solution to get a binary matrix
+            # TODO: Can speed up by checking only entries that have not already been rounded
+            for i, j in vars:
+                # NOTE: Some solvers may give 0.5 - epsilon
+                if solver.value(vars[i, j]) >= 0.499:
+                    current_matrix[int(i), int(j)] = 1
+
+            # Check if the solution is conflict-free
+            icf, col_pair = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
+                current_matrix, self.na_value
+            )
+
+            if icf:
+                break
+            print("Rounded solution had conflicts")
+
+            # Prepare for another iteration
+            model, vars = get_linear_program(current_matrix)
+
+        init_node_time = time.time() - init_node_time
         # Create delta matrix (flips of 0→1)
-        nodedelta = sp.lil_matrix(np.logical_and(solution == 1, self.matrix == 0))
+        nodedelta = sp.lil_matrix(np.logical_and(current_matrix == 1, self.matrix == 0))
 
-        # Store the LP objective value for future bound calculations
-        self.next_lb = np.ceil(solver.objective_value)
+        # assert False, (
+        #     f"Done finding conflict free matrix with {nodedelta.count_nonzero()} flips in {init_node_time} s"
+        # )
+
         print("In init node: objective_value=", self.next_lb)
 
         # Set node state
@@ -897,9 +837,6 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         Returns:
             Lower bound value
         """
-        # TODO: Remove this check prior to deploying
-        for i in range(delta.count_nonzero()):
-            assert self.linear_program.var_from_index(i).lower_bound == 0
         # Create effective matrix
         current_matrix = get_effective_matrix(self.matrix, delta, na_delta)
 
@@ -907,12 +844,9 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         model_time_start = time.time()
 
         # Instead of getting a brand new linear_program, recycle the initial one
-        model = get_linear_program_from_delta(
-            current_matrix,
-            delta,
-            self.linear_program,
-            self.linear_program_vars,
-        )
+        for i, j in zip(*delta.nonzero()):
+            self.linear_program_vars[i, j].lower_bound = 1
+
         # Record model preparation time
         model_time = time.time() - model_time_start
         self._times["model_preparation_time"] += model_time
@@ -921,12 +855,12 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         opt_time_start = time.time()
 
         solver = model_builder.Solver(self.solver_name)
-        status = solver.solve(model)
+        status = solver.solve(self.linear_program)
 
         opt_time = time.time() - opt_time_start
         self._times["optimization_time"] += opt_time
 
-        if status != pywraplp.Solver.OPTIMAL:
+        if status != model_builder.SolveStatus.OPTIMAL:
             print(
                 "Linear Programming Bounding: The problem does not have an optimal solution."
             )
@@ -935,8 +869,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         objective_value = solver.objective_value
         # Can clone the model -- or better yet -- set the lower bounds back to 0
         for i, j in zip(*delta.nonzero()):
-            var_ix = self.linear_program_vars[(i, j)]
-            model.var_from_index(var_ix).lower_bound = 0
+            self.linear_program_vars[i, j].lower_bound = 0
 
         # Save extra info for branching decisions (TODO: Is this needed)
         is_conflict_free, conflict_col_pair = (
