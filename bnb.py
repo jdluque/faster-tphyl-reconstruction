@@ -38,7 +38,7 @@ from pysat.examples.rc2 import RC2
 from pysat.formula import WCNF
 
 from abstract import BoundingAlgAbstract
-from linear_programming import get_linear_program, get_linear_program_from_delta
+from linear_programming import get_linear_program
 from LPBoundGurobi import LinearProgrammingBoundingGurobi
 from utils import is_conflict_free_gusfield_and_get_two_columns_in_coflicts
 
@@ -775,7 +775,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         # TODO: Will need to add a check here to ensure the matrix is conflict free. Else re-run the LP and round the new solution.
         for i, j in vars:
             # NOTE: Some solvers may give 0.5 - epsilon
-            if solver.value(model.var_from_index(vars[i, j])) >= 0.499:
+            if solver.value(vars[i, j]) >= 0.499:
                 solution[i, j] = 1
 
         # Check if the solution is conflict-free
@@ -818,9 +818,6 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         Returns:
             Lower bound value
         """
-        # TODO: Remove this check prior to deploying
-        for i in range(delta.count_nonzero()):
-            assert self.linear_program.var_from_index(i).lower_bound == 0
         # Create effective matrix
         current_matrix = get_effective_matrix(self.matrix, delta, na_delta)
 
@@ -828,12 +825,9 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         model_time_start = time.time()
 
         # Instead of getting a brand new linear_program, recycle the initial one
-        model = get_linear_program_from_delta(
-            current_matrix,
-            delta,
-            self.linear_program,
-            self.linear_program_vars,
-        )
+        for i, j in zip(*delta.nonzero()):
+            self.linear_program_vars[i, j].lower_bound = 1
+
         # Record model preparation time
         model_time = time.time() - model_time_start
         self._times["model_preparation_time"] += model_time
@@ -842,7 +836,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         opt_time_start = time.time()
 
         solver = model_builder.Solver(self.solver_name)
-        status = solver.solve(model)
+        status = solver.solve(self.linear_program)
 
         opt_time = time.time() - opt_time_start
         self._times["optimization_time"] += opt_time
@@ -856,8 +850,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         objective_value = solver.objective_value
         # Can clone the model -- or better yet -- set the lower bounds back to 0
         for i, j in zip(*delta.nonzero()):
-            var_ix = self.linear_program_vars[(i, j)]
-            model.var_from_index(var_ix).lower_bound = 0
+            self.linear_program_vars[i, j].lower_bound = 0
 
         # Save extra info for branching decisions (TODO: Is this needed)
         is_conflict_free, conflict_col_pair = (
