@@ -739,50 +739,47 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         """
         node = pybnb.Node()
 
-        # Start timing model preparation
-        model_time_start = time.time()
-        # pr = cProfile.Profile()
-        # pr.enable()
-        self.linear_program, self.linear_program_vars = get_linear_program(self.matrix)
-        solver = model_builder.Solver(self.solver_name)
-        # pr.disable()
-        # with open("profile.txt", "w") as f:
-        #     sortby = SortKey.CUMULATIVE
-        #     ps = pstats.Stats(pr, stream=f).sort_stats(sortby)
-        #     ps.print_stats()
+        # Matrix to become conflict free
+        current_matrix = np.copy(self.matrix)
+        while True:
+            # Start timing model preparation
+            model_time_start = time.time()
+            self.linear_program, self.linear_program_vars = get_linear_program(
+                current_matrix
+            )
+            solver = model_builder.Solver(self.solver_name)
 
-        # Record model preparation time
-        model_time = time.time() - model_time_start
-        self._times["model_preparation_time"] += model_time
+            # Record model preparation time
+            model_time = time.time() - model_time_start
+            self._times["model_preparation_time"] += model_time
 
-        # Solve and time optimization
-        opt_time_start = time.time()
-        status = solver.solve(self.linear_program)
-        opt_time = time.time() - opt_time_start
-        self._times["optimization_time"] += opt_time
+            # Solve and time optimization
+            opt_time_start = time.time()
+            status = solver.solve(self.linear_program)
+            opt_time = time.time() - opt_time_start
+            self._times["optimization_time"] += opt_time
 
-        if status != model_builder.SolveStatus.OPTIMAL:
-            # If no optimal solution, return None
-            return None
+            if status != model_builder.SolveStatus.OPTIMAL:
+                # If no optimal solution, return None
+                return None
 
-        # Round solution to get a binary matrix
-        m = self.matrix.shape[0]  # rows
-        n = self.matrix.shape[1]  # cols
-        solution = np.copy(self.matrix)
-        # TODO: Will need to add a check here to ensure the matrix is conflict free. Else re-run the LP and round the new solution.
-        for i, j in self.linear_program_vars:
-            # NOTE: Some solvers may give 0.5 - epsilon
-            if solver.value(self.linear_program_vars[i, j]) >= 0.499:
-                solution[i, j] = 1
+            # Round solution to get a binary matrix
+            # TODO: Can speed up by checking only entries that have not already been rounded
+            for i, j in self.linear_program_vars:
+                # NOTE: Some solvers may give 0.5 - epsilon
+                if solver.value(self.linear_program_vars[i, j]) >= 0.499:
+                    current_matrix[i, j] = 1
 
-        # Check if the solution is conflict-free
-        icf, col_pair = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
-            solution, self.na_value
-        )
-        assert icf, "Initial node must be conflict free"
+            # Check if the solution is conflict-free
+            icf, col_pair = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
+                current_matrix, self.na_value
+            )
+
+            if icf:
+                break
 
         # Create delta matrix (flips of 0→1)
-        nodedelta = sp.lil_matrix(np.logical_and(solution == 1, self.matrix == 0))
+        nodedelta = sp.lil_matrix(np.logical_and(current_matrix == 1, self.matrix == 0))
 
         # Store the LP objective value for future bound calculations
         self.next_lb = np.ceil(solver.objective_value)
