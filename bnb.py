@@ -32,7 +32,6 @@ import time
 import numpy as np
 import pybnb
 import scipy.sparse as sp
-from ortools.linear_solver import pywraplp
 from ortools.linear_solver.python import model_builder
 from pysat.examples.rc2 import RC2
 from pysat.formula import WCNF
@@ -764,7 +763,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         opt_time = time.time() - opt_time_start
         self._times["optimization_time"] += opt_time
 
-        if status != pywraplp.Solver.OPTIMAL:
+        if status != model_builder.SolveStatus.OPTIMAL:
             # If no optimal solution, return None
             return None
 
@@ -841,7 +840,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         opt_time = time.time() - opt_time_start
         self._times["optimization_time"] += opt_time
 
-        if status != pywraplp.Solver.OPTIMAL:
+        if status != model_builder.SolveStatus.OPTIMAL:
             print(
                 "Linear Programming Bounding: The problem does not have an optimal solution."
             )
