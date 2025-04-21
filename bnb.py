@@ -746,11 +746,16 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
 
         # Matrix to become conflict free
         current_matrix = np.copy(self.matrix)
+
         init_node_time = time.time()
+        model_time_start = time.time()
+
+        self.linear_program, self.linear_program_vars = get_linear_program(
+            current_matrix
+        )
+        model, vars = self.linear_program, self.linear_program_vars
         while True:
             # Start timing model preparation
-            model_time_start = time.time()
-            model, vars = get_linear_program(current_matrix)
             if self.linear_program is None:
                 self.linear_program = model
                 self.linear_program_vars = vars
@@ -792,6 +797,9 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
                 break
             print("Rounded solution had conflicts")
 
+            # Prepare for another iteration
+            model, vars = get_linear_program(current_matrix)
+
         init_node_time = time.time() - init_node_time
         # Create delta matrix (flips of 0→1)
         nodedelta = sp.lil_matrix(np.logical_and(current_matrix == 1, self.matrix == 0))
@@ -799,6 +807,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         # assert False, (
         #     f"Done finding conflict free matrix with {nodedelta.count_nonzero()} flips in {init_node_time} s"
         # )
+
         print("In init node: objective_value=", self.next_lb)
 
         # Set node state
