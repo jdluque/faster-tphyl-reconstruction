@@ -756,9 +756,6 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
                 self.linear_program_vars = vars
 
             solver = model_builder.Solver(self.solver_name)
-            solver.set_solver_specific_parameters(
-                "termination_criteria { eps_optimal_absolute: 1e-4 eps_optimal_relative: 1e-4 }"
-            )
 
             # Record model preparation time
             model_time = time.time() - model_time_start
