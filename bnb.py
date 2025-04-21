@@ -743,15 +743,13 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         model_time_start = time.time()
         # pr = cProfile.Profile()
         # pr.enable()
-        model, vars = get_linear_program(self.matrix)
-        self.linear_program = model
+        self.linear_program, self.linear_program_vars = get_linear_program(self.matrix)
         solver = model_builder.Solver(self.solver_name)
         # pr.disable()
         # with open("profile.txt", "w") as f:
         #     sortby = SortKey.CUMULATIVE
         #     ps = pstats.Stats(pr, stream=f).sort_stats(sortby)
         #     ps.print_stats()
-        self.linear_program_vars = vars
 
         # Record model preparation time
         model_time = time.time() - model_time_start
@@ -759,7 +757,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
 
         # Solve and time optimization
         opt_time_start = time.time()
-        status = solver.solve(model)
+        status = solver.solve(self.linear_program)
         opt_time = time.time() - opt_time_start
         self._times["optimization_time"] += opt_time
 
@@ -772,9 +770,9 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         n = self.matrix.shape[1]  # cols
         solution = np.copy(self.matrix)
         # TODO: Will need to add a check here to ensure the matrix is conflict free. Else re-run the LP and round the new solution.
-        for i, j in vars:
+        for i, j in self.linear_program_vars:
             # NOTE: Some solvers may give 0.5 - epsilon
-            if solver.value(vars[i, j]) >= 0.499:
+            if solver.value(self.linear_program_vars[i, j]) >= 0.499:
                 solution[i, j] = 1
 
         # Check if the solution is conflict-free
