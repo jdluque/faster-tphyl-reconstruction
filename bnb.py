@@ -553,6 +553,7 @@ class TwoSatBounding(BoundingAlgAbstract):
         #     pass
 
         node = pybnb.Node()
+        init_node_time = time.time()
         solution, model_time, opt_time, lb = twosat_solver(
             self.matrix,
             cluster_rows=self.cluster_rows,
@@ -570,6 +571,10 @@ class TwoSatBounding(BoundingAlgAbstract):
         self._times["optimization_time"] += opt_time
 
         nodedelta = sp.lil_matrix(np.logical_and(solution == 1, self.matrix == 0))
+        init_node_time = time.time() - init_node_time
+        assert False, (
+            f"next lower bound {lb} with found initial node in {init_node_time} with {nodedelta.count_nonzero()} flips"
+        )
         node_na_delta = sp.lil_matrix(
             np.logical_and(solution == 1, self.matrix == self.na_value)
         )
@@ -741,13 +746,19 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
 
         # Matrix to become conflict free
         current_matrix = np.copy(self.matrix)
+        init_node_time = time.time()
         while True:
             # Start timing model preparation
             model_time_start = time.time()
-            self.linear_program, self.linear_program_vars = get_linear_program(
-                current_matrix
-            )
+            model, vars = get_linear_program(current_matrix)
+            if self.linear_program is None:
+                self.linear_program = model
+                self.linear_program_vars = vars
+
             solver = model_builder.Solver(self.solver_name)
+            solver.set_solver_specific_parameters(
+                "termination_criteria { eps_optimal_absolute: 1e-4 eps_optimal_relative: 1e-4 }"
+            )
 
             # Record model preparation time
             model_time = time.time() - model_time_start
@@ -755,7 +766,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
 
             # Solve and time optimization
             opt_time_start = time.time()
-            status = solver.solve(self.linear_program)
+            status = solver.solve(model)
             opt_time = time.time() - opt_time_start
             self._times["optimization_time"] += opt_time
 
@@ -763,12 +774,17 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
                 # If no optimal solution, return None
                 return None
 
+            # Store the LP objective value for future bound calculations
+            if self.next_lb is None:
+                self.next_lb = np.ceil(solver.objective_value)
+                print(f"Lower bound {self.next_lb}")
+
             # Round solution to get a binary matrix
             # TODO: Can speed up by checking only entries that have not already been rounded
-            for i, j in self.linear_program_vars:
+            for i, j in vars:
                 # NOTE: Some solvers may give 0.5 - epsilon
-                if solver.value(self.linear_program_vars[i, j]) >= 0.499:
-                    current_matrix[i, j] = 1
+                if solver.value(vars[i, j]) >= 0.499:
+                    current_matrix[int(i), int(j)] = 1
 
             # Check if the solution is conflict-free
             icf, col_pair = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
@@ -777,12 +793,15 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
 
             if icf:
                 break
+            print("Rounded solution had conflicts")
 
+        init_node_time = time.time() - init_node_time
         # Create delta matrix (flips of 0→1)
         nodedelta = sp.lil_matrix(np.logical_and(current_matrix == 1, self.matrix == 0))
 
-        # Store the LP objective value for future bound calculations
-        self.next_lb = np.ceil(solver.objective_value)
+        assert False, (
+            f"Done finding conflict free matrix with {nodedelta.count_nonzero()} flips in {init_node_time} s"
+        )
         print("In init node: objective_value=", self.next_lb)
 
         # Set node state
