@@ -572,9 +572,9 @@ class TwoSatBounding(BoundingAlgAbstract):
 
         nodedelta = sp.lil_matrix(np.logical_and(solution == 1, self.matrix == 0))
         init_node_time = time.time() - init_node_time
-        assert False, (
-            f"next lower bound {lb} with found initial node in {init_node_time} with {nodedelta.count_nonzero()} flips"
-        )
+        # assert False, (
+        #     f"next lower bound {lb} with found initial node in {init_node_time} with {nodedelta.count_nonzero()} flips"
+        # )
         node_na_delta = sp.lil_matrix(
             np.logical_and(solution == 1, self.matrix == self.na_value)
         )
@@ -799,9 +799,9 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         # Create delta matrix (flips of 0→1)
         nodedelta = sp.lil_matrix(np.logical_and(current_matrix == 1, self.matrix == 0))
 
-        assert False, (
-            f"Done finding conflict free matrix with {nodedelta.count_nonzero()} flips in {init_node_time} s"
-        )
+        # assert False, (
+        #     f"Done finding conflict free matrix with {nodedelta.count_nonzero()} flips in {init_node_time} s"
+        # )
         print("In init node: objective_value=", self.next_lb)
 
         # Set node state
