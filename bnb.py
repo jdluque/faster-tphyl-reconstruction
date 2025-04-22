@@ -799,7 +799,8 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         #     f"Done finding conflict free matrix with {nodedelta.count_nonzero()} flips in {init_node_time} s"
         # )
 
-        print("In init node: objective_value=", self.next_lb)
+        print("Completed init node: objective_value=", self.next_lb)
+        print(f"{self._times=}")
 
         # Set node state
         node.state = (
