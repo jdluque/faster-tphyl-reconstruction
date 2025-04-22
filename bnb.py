@@ -793,7 +793,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
             model, vars = get_linear_program_from_col_subset(
                 current_matrix, rounded_columns
             )
-            self._times["model_preparation_time"] += time.time() - model_time
+            self._times["model_preparation_time"] += time.time() - model_time_start
 
         init_node_time = time.time() - init_node_time
         # Create delta matrix (flips of 0→1)
