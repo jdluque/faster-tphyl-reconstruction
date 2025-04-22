@@ -680,8 +680,6 @@ class TwoSatBounding(BoundingAlgAbstract):
         assert False, "get_priority did not return anything!"
 
 
-# TODO: Add an option for only conflict columns (saving the conflict cols)
-# TODO: Do I need to do deep copy instead of copy
 class LinearProgrammingBounding(BoundingAlgAbstract):
     def __init__(self, solver_name, priority_version=-1, na_value=None):
         """Initialize the Linear Programming Bounding algorithm.
@@ -770,7 +768,6 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
                 print(f"Lower bound {self.next_lb}")
 
             # Round solution to get a binary matrix
-            # TODO: Can speed up by checking only entries that have not already been rounded
             rounded_columns = set()
             for i, j in vars:
                 # NOTE: Some solvers may give 0.5 - epsilon
