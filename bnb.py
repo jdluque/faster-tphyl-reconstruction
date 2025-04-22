@@ -1012,7 +1012,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
             rounded_delta_matrix = None
         else:
             rounded_delta_matrix = sp.lil_matrix(
-                np.logical_and(current_matrix, self.matrix)
+                np.logical_and(current_matrix == 1, self.matrix == 0),
             )
 
         # Update with rounded matrix
