@@ -74,6 +74,11 @@ class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
         self.linear_program = model
         self.linear_program_vars = vars
 
+        # Model getting
+        # self.linear_program.Params.LogFile = "gurobi.log"
+        # self.linear_program.Params.LogToConsole = False
+        self.linear_program.Params.OutputFlag = 0
+
         # Record model preparation time
         model_time = time.time() - model_time_start
         self._times["model_preparation_time"] += model_time
