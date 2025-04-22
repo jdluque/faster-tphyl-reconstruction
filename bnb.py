@@ -885,8 +885,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
 
         return node
 
-
-    @DeprecationWarning # Don't use this
+    @DeprecationWarning  # Don't use this
     def get_initial_upper_bound(self, delta, max_rounds=10):
         """Helper method to compute the upper bound based on rounded LP
 
@@ -897,7 +896,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         Returns:
             Sparse delta matrix of added mutations
         """
-        for attempt in range(max_rounds): # FIX THIS SOLVE 
+        for attempt in range(max_rounds):  # FIX THIS SOLVE
             solver, current_matrix = self.linear_program.get_solver_and_matrix(
                 delta, na_delta=None
             )
@@ -926,7 +925,6 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
 
         print("Warning: Failed to find conflict-free rounded matrix within max rounds.")
         return None
-
 
     def compute_lp_bound(self, delta, na_delta=None):
         """Helper method to compute LP bound for a given delta.
@@ -996,23 +994,27 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         # feasible_delta = self.get_initial_upper_bound(delta, max_rounds=10)
 
         # Round LP solution
-        rounded_matrix = np.copy(current_matrix)
+        # NOTE: use current_matrix to accumulate the rounded solution since we
+        # do not need it anymore
+        # TODO: Fix the indexing into LP variables
         for (i, j), var_index in self.linear_program_vars.items():
             val = solver.value(self.linear_program.var_from_index(var_index))
-            rounded_matrix[i, j] = 1 if val >= 0.499 else 0
+            if val >= 0.499:
+                current_matrix[i, j] = 1
 
         # Check if the rounded matrix is conflict free
         is_cf, _ = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
-            rounded_matrix, self.na_value
+            current_matrix, self.na_value
         )
 
         # Create delta matrix (flips of 0→1)
-        rounded_delta_matrix = sp.lil_matrix(
-            np.logical_and(rounded_matrix == 1, self.matrix == 0), dtype=np.int8
-        )
-        if not is_cf: # has conflicts
+        if not is_cf:  # has conflicts
             rounded_delta_matrix = None
-        
+        else:
+            rounded_delta_matrix = sp.lil_matrix(
+                np.logical_and(current_matrix, self.matrix)
+            )
+
         # Update with rounded matrix
         self.last_lp_feasible_delta = rounded_delta_matrix
 
@@ -1243,7 +1245,6 @@ class BnB(pybnb.Problem):
                     self.node_to_add = pybnb.Node()
                     self.node_to_add.state = feasible_node.state
                     self.node_to_add.queue_priority = feasible_node.queue_priority
-
 
                 node_icf, nodecol_pair = None, None
                 extra_info = self.boundingAlg.get_extra_info()
