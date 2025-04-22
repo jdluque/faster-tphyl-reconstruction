@@ -161,7 +161,7 @@ def add_constraints_for_newly_rounded_cols(
 
 def get_linear_program(
     matrix,
-) -> tuple[ModelBuilder, dict[tuple[int, int], Variable]]:
+) -> tuple[ModelBuilder, dict[tuple[int, int], mb.Variable]]:
     model = ModelBuilder()
     # WARN: Can use type np.bool only because there are no na values
     matrix = matrix.astype(np.bool)
