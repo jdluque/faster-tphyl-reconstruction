@@ -569,6 +569,7 @@ class TwoSatBounding(BoundingAlgAbstract):
         node_na_delta = sp.lil_matrix(
             np.logical_and(solution == 1, self.matrix == self.na_value)
         )
+        print(f"Time to compute init node: {self._times=}")
         node.state = (
             nodedelta,
             True,
