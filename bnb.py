@@ -37,7 +37,7 @@ from pysat.examples.rc2 import RC2
 from pysat.formula import WCNF
 
 from abstract import BoundingAlgAbstract
-from linear_programming import get_linear_program
+from linear_programming import get_linear_program, get_linear_program_from_col_subset
 from LPBoundGurobi import LinearProgrammingBoundingGurobi
 from utils import (
     get_effective_matrix,
@@ -745,18 +745,14 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         self.linear_program, self.linear_program_vars = get_linear_program(
             current_matrix
         )
+
+        model_time = time.time() - model_time_start
+        self._times["model_preparation_time"] += model_time
+
         model, vars = self.linear_program, self.linear_program_vars
         while True:
             # Start timing model preparation
-            if self.linear_program is None:
-                self.linear_program = model
-                self.linear_program_vars = vars
-
             solver = model_builder.Solver(self.solver_name)
-
-            # Record model preparation time
-            model_time = time.time() - model_time_start
-            self._times["model_preparation_time"] += model_time
 
             # Solve and time optimization
             opt_time_start = time.time()
@@ -775,10 +771,13 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
 
             # Round solution to get a binary matrix
             # TODO: Can speed up by checking only entries that have not already been rounded
+            rounded_columns = set()
             for i, j in vars:
                 # NOTE: Some solvers may give 0.5 - epsilon
                 if solver.value(vars[i, j]) >= 0.499:
-                    current_matrix[int(i), int(j)] = 1
+                    if not current_matrix[i, j]:
+                        rounded_columns.add(j)
+                    current_matrix[i, j] = 1
 
             # Check if the solution is conflict-free
             icf, col_pair = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
@@ -789,8 +788,12 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
                 break
             print("Rounded solution had conflicts")
 
-            # Prepare for another iteration
-            model, vars = get_linear_program(current_matrix)
+            model_time_start = time.time()
+            # Prepare model for another iteration
+            model, vars = get_linear_program_from_col_subset(
+                current_matrix, rounded_columns
+            )
+            self._times["model_preparation_time"] += time.time() - model_time
 
         init_node_time = time.time() - init_node_time
         # Create delta matrix (flips of 0→1)
