@@ -5,10 +5,14 @@ import gurobipy as gp
 import numpy as np
 import pybnb
 import scipy.sparse as sp
+from gurobipy import GRB
 
 from abstract import BoundingAlgAbstract
 from linear_programming import get_linear_program_gurobi
-from utils import is_conflict_free_gusfield_and_get_two_columns_in_coflicts
+from utils import (
+    get_effective_matrix,
+    is_conflict_free_gusfield_and_get_two_columns_in_coflicts,
+)
 
 
 class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
@@ -21,7 +25,7 @@ class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
         """
         self.matrix = None  # Input Matrix
         # Linear Program solver and variables
-        self.linear_program = None
+        self.linear_program = gp.Model()
         self.linear_program_vars = None
         self._extra_info = None  # Additional information from bounding
         self._extraInfo = {}  # For compatibility with the abstract class
@@ -132,62 +136,51 @@ class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
         Returns:
             Lower bound value
         """
-        # TODO: implement with Gurobi API
-        pass
-        # # TODO: Remove this check prior to deploying
-        # for i in range(delta.count_nonzero()):
-        #     assert self.linear_program.var_from_index(i).lower_bound == 0
-        # # Create effective matrix
-        # current_matrix = get_effective_matrix(self.matrix, delta, na_delta)
-        #
-        # # Start timing model preparation
-        # model_time_start = time.time()
-        #
-        # # Instead of getting a brand new linear_program, recycle the initial one
-        # model = get_linear_program_from_delta(
-        #     current_matrix,
-        #     delta,
-        #     self.linear_program,
-        #     self.linear_program_vars,
-        # )
-        # # Record model preparation time
-        # model_time = time.time() - model_time_start
-        # self._times["model_preparation_time"] += model_time
-        #
-        # # Solve and time optimization
-        # opt_time_start = time.time()
-        #
+        # Create effective matrix
+        current_matrix = get_effective_matrix(self.matrix, delta, na_delta)
+
+        # Start timing model preparation
+        model_time_start = time.time()
+
+        # Instead of getting a brand new linear_program, recycle the initial one
+        for i, j in zip(*delta.nonzero()):
+            self.linear_program.setAttr("LB", self.linear_program_vars[i, j], 1)
+
+        # Record model preparation time
+        model_time = time.time() - model_time_start
+        self._times["model_preparation_time"] += model_time
+
+        # Solve and time optimization
+        opt_time_start = time.time()
+
+        self.linear_program.optimize()
         # solver = model_builder.Solver(self.solver_name)
-        # status = solver.solve(model)
-        #
-        # opt_time = time.time() - opt_time_start
-        # self._times["optimization_time"] += opt_time
-        #
-        # if status != pywraplp.Solver.OPTIMAL:
-        #     print(
-        #         "Linear Programming Bounding: The problem does not have an optimal solution."
-        #     )
-        #     return float("inf")  # Return infinity as a bound
-        #
-        # objective_value = solver.objective_value
-        # # Can clone the model -- or better yet -- set the lower bounds back to 0
-        # for i, j in zip(*delta.nonzero()):
-        #     var_ix = self.linear_program_vars[(i, j)]
-        #     model.var_from_index(var_ix).lower_bound = 0
-        #
-        # # Save extra info for branching decisions (TODO: Is this needed)
-        # is_conflict_free, conflict_col_pair = (
-        #     is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
-        #         current_matrix, self.na_value
-        #     )
-        # )
-        # self._extraInfo = {
-        #     "icf": is_conflict_free,
-        #     "one_pair_of_columns": conflict_col_pair,
-        # }
-        #
-        # # Return the bound (LP objective includes existing flips)
-        # return np.ceil(objective_value)
+        if self.linear_program.Status != GRB.OPTIMAL:
+            print(
+                "Linear Programming Bounding: The problem does not have an optimal solution."
+            )
+            return float("inf")
+
+        opt_time = time.time() - opt_time_start
+        self._times["optimization_time"] += opt_time
+
+        # Can clone the model -- or better yet -- set the lower bounds back to 0
+        for i, j in zip(*delta.nonzero()):
+            self.linear_program.setAttr("LB", self.linear_program_vars[i, j], 0)
+
+        # Save extra info for branching decisions (TODO: Is this needed)
+        is_conflict_free, conflict_col_pair = (
+            is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
+                current_matrix, self.na_value
+            )
+        )
+        self._extraInfo = {
+            "icf": is_conflict_free,
+            "one_pair_of_columns": conflict_col_pair,
+        }
+
+        # Return the bound (LP objective includes existing flips)
+        return np.ceil(self.linear_program.getObjective().getValue())
 
     def get_bound(self, delta, na_delta=None):
         """Calculate a lower bound on the number of flips needed.

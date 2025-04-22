@@ -39,7 +39,10 @@ from pysat.formula import WCNF
 from abstract import BoundingAlgAbstract
 from linear_programming import get_linear_program
 from LPBoundGurobi import LinearProgrammingBoundingGurobi
-from utils import is_conflict_free_gusfield_and_get_two_columns_in_coflicts
+from utils import (
+    get_effective_matrix,
+    is_conflict_free_gusfield_and_get_two_columns_in_coflicts,
+)
 
 rec_num = 0
 
@@ -113,18 +116,6 @@ def make_sure_variable_exists(
         memory_matrix[row, col] = num_var_F
         var_list.append(num_var_F)
     return num_var_F
-
-
-def get_effective_matrix(I, delta01, delta_na_to_1, change_na_to_0=False):
-    x = np.array(I + delta01, dtype=np.int8)
-    if delta_na_to_1 is not None:
-        na_indices = delta_na_to_1.nonzero()
-        x[na_indices] = (
-            1  # should have been (but does not accept): x[na_indices] = delta_na_to_1[na_indices]
-        )
-    if change_na_to_0:
-        x[np.logical_and(x != 0, x != 1)] = 0
-    return x
 
 
 def make_twosat_model_from_np(

@@ -32,3 +32,15 @@ def is_conflict_free_gusfield_and_get_two_columns_in_coflicts(I, na_value):
                 if Lij[i, j] != Lj[j]:
                     return False, (idx[j], idx[Lj[j] - 1])
     return True, (None, None)
+
+
+def get_effective_matrix(I, delta01, delta_na_to_1, change_na_to_0=False):
+    x = np.array(I + delta01, dtype=np.int8)
+    if delta_na_to_1 is not None:
+        na_indices = delta_na_to_1.nonzero()
+        x[na_indices] = (
+            1  # should have been (but does not accept): x[na_indices] = delta_na_to_1[na_indices]
+        )
+    if change_na_to_0:
+        x[np.logical_and(x != 0, x != 1)] = 0
+    return x
