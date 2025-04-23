@@ -704,6 +704,8 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         self.next_lb = None  # Store precomputed lower bound from get_init_node
         self.priority_version = priority_version  # Controls node priority calculation
         self.model_state = None  # State to store/restore
+        # Used to compute incumbent "upper bounds" after rounding LP solutions
+        self.last_lp_feasible_delta = None
 
         # Debug variables
         self.num_lower_bounds = 0
