@@ -1171,10 +1171,7 @@ class BnB(pybnb.Problem):
                         icf=True,
                     )
 
-                    # Safely store the node for next time (can't yield the node)
-                    self.node_to_add = pybnb.Node()
-                    self.node_to_add.state = feasible_node.state
-                    self.node_to_add.queue_priority = feasible_node.queue_priority
+                    yield feasible_node
 
                 node_icf, nodecol_pair = None, None
                 extra_info = self.boundingAlg.get_extra_info()
