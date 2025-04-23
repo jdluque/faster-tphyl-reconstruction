@@ -946,7 +946,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         self.last_lp_feasible_delta = rounded_delta_matrix
 
         # Return the bound (LP objective includes existing flips)
-        return np.ceil(objective_value)
+        return objective_value
 
     def get_bound(self, delta, na_delta=None):
         """Calculate a lower bound on the number of flips needed.
