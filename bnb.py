@@ -519,6 +519,9 @@ class TwoSatBounding(BoundingAlgAbstract):
         self.only_descendant_rows = only_descendant_rows
         self.num_lower_bounds = 1
 
+        # NOTE: defined for compatibility with LinearProgrammingBounding in solve_by_BnB
+        self.last_lp_feasible_delta = None
+
     def get_name(self):
         params = [
             type(self).__name__,
