@@ -41,36 +41,49 @@ def make_graph(A):
     return G
 
 
-def min_unweighted_vertex_cover(G):
+def min_unweighted_vertex_cover(G: nx.Graph):
     """For unweightred case, no need to use local ratio techniques used in
     networkx.algorithms.min_weighted_vertex_cover().
     """
     cover = set()
-    for u, v in G.edges():
+    edges = np.random.permutation(list(G.edges()))
+    for u, v in edges:
+        u = tuple(u)
+        v = tuple(v)
         if u in cover or v in cover:
             continue
         cover.add(u)
+        cover.add(v)
+    assert len(cover) >= 40, cover
     return cover
 
 
-def vertex_cover_pp(A):
+def vertex_cover_pp(G):
     """Returns
     1. a lower bound on the number of bit flips required to make A a
     perfect phylogeny by solving a related weighted vertex cover instance.
     2. a set of (i,j) indices of bits flipped.
     """
-    G = make_graph(A)
     vc = min_unweighted_vertex_cover(G)
     flipped_bits = len(vc)
-    return int(np.ceil(flipped_bits / 2)), list(G.nodes)
+    return np.ceil(flipped_bits / 2), vc
 
 
 if __name__ == "__main__":
-    df = pd.read_csv("example/data1.SC", sep="\t", index_col=0)
+    df = pd.read_csv("example/data2.SC", sep="\t", index_col=0)
     df.reset_index(drop=True, inplace=True)
-    df = (df == "1").astype(np.bool)
+    df = (df == 1).astype(np.bool)
     A = df.to_numpy(dtype=np.bool)
+    G = make_graph(A)
     print(f"{np.sum(A)=}")
     print(A.shape)
-    lb, _flipped_bits = vertex_cover_pp(A)
-    print(f"It takes at least {lb} bit flips to turn A into a perfect phylogeny.")
+    best_lb = 0
+    best_ub = float("inf")
+    for _ in range(5):
+        lb, flipped_bits = vertex_cover_pp(G)
+        # print(f"{lb=}")
+        ub = len(flipped_bits)
+        best_lb = max(lb, best_lb)
+        best_ub = min(ub, best_ub)
+    print(f"It takes at least {best_lb} bit flips to turn A into a perfect phylogeny.")
+    print(f"It takes at most {best_ub} bit flips to turn A into a perfect phylogeny.")
