@@ -38,6 +38,7 @@ class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
         self.next_lb = None  # Store precomputed lower bound from get_init_node
         self.priority_version = priority_version  # Controls node priority calculation
         self.model_state = None  # State to store/restore
+        self.last_lp_feasible_delta = None
 
         # Debug variables
         self.num_lower_bounds = 0
@@ -180,7 +181,6 @@ class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
         opt_time_start = time.time()
 
         self.linear_program.optimize()
-        # solver = model_builder.Solver(self.solver_name)
         if self.linear_program.Status != GRB.OPTIMAL:
             print(
                 "Linear Programming Bounding: The problem does not have an optimal solution."
@@ -205,6 +205,29 @@ class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
             "one_pair_of_columns": conflict_col_pair,
         }
 
+        # Round LP soluton
+        # NOTE: use current_matrix to accumulate the rounded solution since we
+        # do not need it anymore
+        for (i, j), variable in self.linear_program_vars.items():
+            if variable.X >= 0.499:
+                current_matrix[i, j] = 1
+
+        # Check if the rounded matrix is conflict free
+        is_cf, _ = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
+            current_matrix, self.na_value
+        )
+
+        # Create delta matrix (flips of 0→1)
+        if not is_cf:  # has conflicts
+            rounded_delta_matrix = None
+        else:
+            rounded_delta_matrix = sp.lil_matrix(
+                np.logical_and(current_matrix == 1, self.matrix == 0),
+            )
+
+        # Update with rounded matrix
+        self.last_lp_feasible_delta = rounded_delta_matrix
+
         # Return the bound (LP objective includes existing flips)
         return np.ceil(self.linear_program.getObjective().getValue())
 
@@ -223,6 +246,7 @@ class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
         if self.next_lb is not None:
             lb = self.next_lb
             self.next_lb = None
+            self.last_lp_feasible_delta = None
             return lb
 
         # Otherwise compute the bound using LP
