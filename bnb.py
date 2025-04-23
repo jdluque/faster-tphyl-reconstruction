@@ -1136,7 +1136,6 @@ class BnB(pybnb.Problem):
                     continue
                 nodedelta[rows01, col] = 1
                 nf01 = nodedelta.count_nonzero()
-                lp_feasible_delta = None
                 if self.has_na:
                     node_na_delta[rows21, col] = 1
                     new_bound = self.boundingAlg.get_bound(nodedelta, node_na_delta)
