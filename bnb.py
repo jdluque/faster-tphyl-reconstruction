@@ -820,6 +820,47 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
 
         return node
 
+    # @DeprecationWarning  # Don't use this
+    # def get_initial_upper_bound(self, delta, max_rounds=10):
+    #     """Helper method to compute the upper bound based on rounded LP
+    #
+    #     Args:
+    #         delta: Sparse matrix with flipped entries
+    #         max_rounds: maximum number of rounds allowed
+    #
+    #     Returns:
+    #         Sparse delta matrix of added mutations
+    #     """
+    #     for attempt in range(max_rounds):  # FIX THIS SOLVE
+    #         solver, current_matrix = self.linear_program.get_solver_and_matrix(
+    #             delta, na_delta=None
+    #         )
+    #
+    #         if solver.Solve() != pywraplp.Solver.OPTIMAL:
+    #             print("Warning: LP did not solve to optimality on attempt", attempt)
+    #             continue  # Try again
+    #
+    #         # Round LP solution
+    #         rounded_matrix = np.copy(current_matrix)
+    #         for (i, j), var_index in self.linear_program_vars.items():
+    #             val = solver.Value(self.linear_program.var_from_index(var_index))
+    #             rounded_matrix[i, j] = 1 if val >= 0.499 else 0
+    #
+    #         # Check if the rounded matrix is conflict free
+    #         is_cf, _ = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
+    #             rounded_matrix, self.na_value
+    #         )
+    #
+    #         if is_cf:
+    #             # Return the corresponding sparse delta matrix
+    #             delta_matrix = sp.lil_matrix(
+    #                 np.logical_and(rounded_matrix == 1, self.matrix == 0)
+    #             )
+    #             return delta_matrix
+    #
+    #     print("Warning: Failed to find conflict-free rounded matrix within max rounds.")
+    #     return None
+
     def compute_lp_bound(self, delta, na_delta=None):
         """Helper method to compute LP bound for a given delta.
 
@@ -875,6 +916,35 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
             "one_pair_of_columns": conflict_col_pair,
         }
 
+        # Get upper bound (from rounded LP solution)
+
+        # NOTE: This is the other option
+        # feasible_delta = self.get_initial_upper_bound(delta, max_rounds=10)
+
+        # Round LP solution
+        # NOTE: use current_matrix to accumulate the rounded solution since we
+        # do not need it anymore
+        # TODO: Fix the indexing into LP variables
+        for (i, j), variable in self.linear_program_vars.items():
+            if solver.value(variable) >= 0.499:
+                current_matrix[i, j] = 1
+
+        # Check if the rounded matrix is conflict free
+        is_cf, _ = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
+            current_matrix, self.na_value
+        )
+
+        # Create delta matrix (flips of 0→1)
+        if not is_cf:  # has conflicts
+            rounded_delta_matrix = None
+        else:
+            rounded_delta_matrix = sp.lil_matrix(
+                np.logical_and(current_matrix == 1, self.matrix == 0),
+            )
+
+        # Update with rounded matrix
+        self.last_lp_feasible_delta = rounded_delta_matrix
+
         # Return the bound (LP objective includes existing flips)
         return np.ceil(objective_value)
 
@@ -893,6 +963,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         if self.next_lb is not None:
             lb = self.next_lb
             self.next_lb = None
+            self.last_lp_feasible_delta = None
             return lb
 
         # Otherwise compute the bound using LP
@@ -1068,8 +1139,39 @@ class BnB(pybnb.Problem):
                 if self.has_na:
                     node_na_delta[rows21, col] = 1
                     new_bound = self.boundingAlg.get_bound(nodedelta, node_na_delta)
+                    lp_feasible_delta = self.boundingAlg.last_lp_feasible_delta
                 else:
                     new_bound = self.boundingAlg.get_bound(nodedelta)
+                    lp_feasible_delta = self.boundingAlg.last_lp_feasible_delta
+
+                # Upper bound based code (Add a new rounded node)
+                if lp_feasible_delta is not None:
+                    feasible_node = pybnb.Node()
+                    nf01 = lp_feasible_delta.count_nonzero()
+
+                    node_icf = True
+                    node_col_pair = None
+                    node_bound_value = nf01  # feasible node has known cost
+
+                    feasible_node.state = (
+                        lp_feasible_delta,
+                        node_icf,
+                        node_col_pair,
+                        node_bound_value,
+                        self.boundingAlg.get_state(),
+                        self.delta_na,
+                    )
+                    feasible_node.queue_priority = self.boundingAlg.get_priority(
+                        till_here=nf01,
+                        this_step=0,
+                        after_here=0,
+                        icf=True,
+                    )
+
+                    # Safely store the node for next time (can't yield the node)
+                    self.node_to_add = pybnb.Node()
+                    self.node_to_add.state = feasible_node.state
+                    self.node_to_add.queue_priority = feasible_node.queue_priority
 
                 node_icf, nodecol_pair = None, None
                 extra_info = self.boundingAlg.get_extra_info()

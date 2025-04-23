@@ -9,9 +9,8 @@ from gurobipy import GRB
 
 from abstract import BoundingAlgAbstract
 from linear_programming import (
-    add_constraints_for_newly_rounded_cols,
-    get_linear_program_gurobi,
     get_linear_program_from_col_subset_gurobi,
+    get_linear_program_gurobi,
 )
 from utils import (
     get_effective_matrix,
@@ -29,7 +28,7 @@ class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
         """
         self.matrix = None  # Input Matrix
         # Linear Program solver and variables
-        self.linear_program = gp.Model()
+        self.linear_program = None
         self.linear_program_vars = None
         self._extra_info = None  # Additional information from bounding
         self._extraInfo = {}  # For compatibility with the abstract class
