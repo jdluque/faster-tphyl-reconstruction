@@ -3,7 +3,7 @@ of bit flips for a perfect phyolgeny by solving a related vertex cover instance.
 """
 
 import itertools as it
-from collections import defaultdict
+import time
 
 import networkx as nx
 import numpy as np
@@ -18,26 +18,18 @@ def make_graph(A):
     m, n = A.shape
     edge_list = []
     for p, q in it.combinations(range(n), 2):
-        pq_pair_counts = defaultdict(list)
-        # Count the number of 01s, 10s, and 11s
-        for i in range(m):
-            if A[i, p] and not A[i, q]:
-                pq_pair_counts[1, 0].append(i)
-            elif not A[i, p] and A[i, q]:
-                pq_pair_counts[0, 1].append(i)
-            elif A[i, p] and A[i, q]:
-                pq_pair_counts[1, 1].append(i)
-        # Tally up the number of flips required to fix (p,q) violations
-        count11 = len(pq_pair_counts[1, 1])
-        count01 = len(pq_pair_counts[0, 1])
-        count10 = len(pq_pair_counts[1, 0])
-        # Add an edge between the zeros of each 01 and each 10 in conflict with one another
-        if count11 and count01 and count10:
-            for i1 in pq_pair_counts[0, 1]:
-                for i2 in pq_pair_counts[1, 0]:
-                    edge_list.append(((i1, p), (i2, q)))
+        col_p, col_q = A[:, p], A[:, q]
+        has_one_one = any(np.logical_and(col_p, col_q))
+        if not has_one_one:
+            continue
+        zero_ones = np.nonzero(np.logical_and(~col_p, col_q))[0]
+        one_zeros = np.nonzero(np.logical_and(col_p, ~col_q))[0]
+        for row1 in zero_ones:
+            for row2 in one_zeros:
+                # For every 10 and 01 in conflict, at least one is (fractionally) flipped
+                edge_list.append(((row1, p), (row2, q)))
+
     G = nx.Graph(edge_list)
-    m, n = A.shape
     return G
 
 
@@ -54,7 +46,6 @@ def min_unweighted_vertex_cover(G: nx.Graph):
             continue
         cover.add(u)
         cover.add(v)
-    assert len(cover) >= 40, cover
     return cover
 
 
@@ -70,20 +61,23 @@ def vertex_cover_pp(G):
 
 
 if __name__ == "__main__":
-    df = pd.read_csv("example/data2.SC", sep="\t", index_col=0)
+    df = pd.read_csv("real/melanoma20_clean.tsv", sep="\t", index_col=0)
     df.reset_index(drop=True, inplace=True)
     df = (df == 1).astype(np.bool)
     A = df.to_numpy(dtype=np.bool)
+    start = time.time()
     G = make_graph(A)
+    graph_build_time = time.time() - start
     print(f"{np.sum(A)=}")
     print(A.shape)
     best_lb = 0
     best_ub = float("inf")
-    for _ in range(5):
+    for _ in range(50):
         lb, flipped_bits = vertex_cover_pp(G)
-        # print(f"{lb=}")
         ub = len(flipped_bits)
         best_lb = max(lb, best_lb)
         best_ub = min(ub, best_ub)
+    end = time.time()
+    print(f"Runtime: {end - start:.3f} s")
     print(f"It takes at least {best_lb} bit flips to turn A into a perfect phylogeny.")
     print(f"It takes at most {best_ub} bit flips to turn A into a perfect phylogeny.")
