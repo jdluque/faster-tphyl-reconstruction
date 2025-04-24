@@ -866,12 +866,17 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
     #     print("Warning: Failed to find conflict-free rounded matrix within max rounds.")
     #     return None
 
-    def compute_lp_bound(self, delta, na_delta=None):
+    def compute_lp_bound(self, delta, na_delta=None, full_lp=False):
         """Helper method to compute LP bound for a given delta.
 
         Args:
             delta: Sparse matrix with flipped entries
             na_delta: NA entries to be flipped (not implemented)
+            full_lp: bool
+                Whether to use the linear program with constraints for all
+                conflicts present in the matrix after flipping delta, or
+                whether to re-use the original LP, which contains only initial
+                conflicts.
 
         Returns:
             Lower bound value
@@ -882,9 +887,15 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         # Start timing model preparation
         model_time_start = time.time()
 
-        # Instead of getting a brand new linear_program, recycle the initial one
-        for i, j in zip(*delta.nonzero()):
-            self.linear_program_vars[i, j].lower_bound = 1
+        if full_lp:
+            self.linear_program, self.linear_program_vars = get_linear_program(
+                current_matrix
+            )
+        else:
+            # Instead of getting a brand new linear_program, recycle the initial one
+            for i, j in zip(*np.nonzero(delta)):
+                if (i, j) in self.linear_program_vars:
+                    self.linear_program_vars[i, j].lower_bound = 1
 
         # Record model preparation time
         model_time = time.time() - model_time_start
@@ -905,10 +916,14 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
             )
             return float("inf")  # Return infinity as a bound
 
-        objective_value = solver.objective_value
-        # Can clone the model -- or better yet -- set the lower bounds back to 0
-        for i, j in zip(*delta.nonzero()):
-            self.linear_program_vars[i, j].lower_bound = 0
+        if full_lp:
+            objective_value = solver.objective_value + delta.count_nonzero()
+        else:
+            objective_value = solver.objective_value
+            # Can clone the model -- or better yet -- set the lower bounds back to 0
+            for i, j in zip(*np.nonzero(delta)):
+                if (i, j) in self.linear_program_vars:
+                    self.linear_program_vars[i, j].lower_bound = 0
 
         # Save extra info for branching decisions (TODO: Is this needed)
         is_conflict_free, conflict_col_pair = (
@@ -972,7 +987,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
             return lb
 
         # Otherwise compute the bound using LP
-        return self.compute_lp_bound(delta, na_delta)
+        return self.compute_lp_bound(delta, na_delta, full_lp=False)
 
     def get_state(self):
         """Get the current state of the bounding algorithm.
