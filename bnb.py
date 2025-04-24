@@ -63,8 +63,9 @@ def solve_by_BnB(matrix_in, na_value, which_bounding):
             na_value=na_value,
         ),  # Simulation
         LinearProgrammingBounding("GLOP"),
-        LinearProgrammingBounding("PDLP"),
+        LinearProgrammingBounding("PDLP", branch_on_full_lp=False),
         LinearProgrammingBoundingGurobi(),
+        LinearProgrammingBounding("PDLP", branch_on_full_lp=True),
     ]
     result = bnb_solve(
         matrix_in, bounding_algorithm=bounding_algs[which_bounding], na_value=na_value
