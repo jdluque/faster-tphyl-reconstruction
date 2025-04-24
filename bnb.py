@@ -884,6 +884,23 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         # Create effective matrix
         current_matrix = get_effective_matrix(self.matrix, delta, na_delta)
 
+        # Save extra info for branching decisions
+        is_conflict_free, conflict_col_pair = (
+            is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
+                current_matrix, self.na_value
+            )
+        )
+        self._extraInfo = {
+            "icf": is_conflict_free,
+            "one_pair_of_columns": conflict_col_pair,
+        }
+
+        # If the current matrix is already conflict free, there is no need to
+        # do anything else
+        if is_conflict_free:
+            self.last_lp_feasible_delta = None
+            return np.ceil(objective_value)
+
         # Start timing model preparation
         model_time_start = time.time()
 
@@ -925,26 +942,11 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
                 if (i, j) in self.linear_program_vars:
                     self.linear_program_vars[i, j].lower_bound = 0
 
-        # Save extra info for branching decisions (TODO: Is this needed)
-        is_conflict_free, conflict_col_pair = (
-            is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
-                current_matrix, self.na_value
-            )
-        )
-        self._extraInfo = {
-            "icf": is_conflict_free,
-            "one_pair_of_columns": conflict_col_pair,
-        }
-
         # Get upper bound (from rounded LP solution)
-
         # NOTE: This is the other option
         # feasible_delta = self.get_initial_upper_bound(delta, max_rounds=10)
 
-        # Round LP solution
-        # NOTE: use current_matrix to accumulate the rounded solution since we
-        # do not need it anymore
-        # TODO: Fix the indexing into LP variables
+        # Round LP solution, accumulating in the no-longer needed current_matrix
         for (i, j), variable in self.linear_program_vars.items():
             if solver.value(variable) >= 0.499:
                 current_matrix[i, j] = 1
@@ -987,7 +989,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
             return lb
 
         # Otherwise compute the bound using LP
-        return self.compute_lp_bound(delta, na_delta, full_lp=False)
+        return self.compute_lp_bound(delta, na_delta, full_lp=True)
 
     def get_state(self):
         """Get the current state of the bounding algorithm.
