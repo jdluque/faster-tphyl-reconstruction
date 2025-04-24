@@ -684,7 +684,9 @@ class TwoSatBounding(BoundingAlgAbstract):
 
 
 class LinearProgrammingBounding(BoundingAlgAbstract):
-    def __init__(self, solver_name, priority_version=-1, na_value=None):
+    def __init__(
+        self, solver_name, branch_on_full_lp=True, priority_version=-1, na_value=None
+    ):
         """Initialize the Linear Programming Bounding algorithm.
 
         Args:
@@ -704,6 +706,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         self.next_lb = None  # Store precomputed lower bound from get_init_node
         self.priority_version = priority_version  # Controls node priority calculation
         self.model_state = None  # State to store/restore
+        self.branch_on_full_lp = branch_on_full_lp
         # Used to compute incumbent "upper bounds" after rounding LP solutions
         self.last_lp_feasible_delta = None
 
@@ -866,7 +869,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
     #     print("Warning: Failed to find conflict-free rounded matrix within max rounds.")
     #     return None
 
-    def compute_lp_bound(self, delta, na_delta=None, full_lp=False):
+    def compute_lp_bound(self, branch_on_full_lp, delta, na_delta=None):
         """Helper method to compute LP bound for a given delta.
 
         Args:
@@ -904,7 +907,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         # Start timing model preparation
         model_time_start = time.time()
 
-        if full_lp:
+        if branch_on_full_lp:
             self.linear_program, self.linear_program_vars = get_linear_program(
                 current_matrix
             )
@@ -933,7 +936,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
             )
             return float("inf")  # Return infinity as a bound
 
-        if full_lp:
+        if branch_on_full_lp:
             objective_value = solver.objective_value + delta.count_nonzero()
         else:
             objective_value = solver.objective_value
@@ -989,7 +992,9 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
             return lb
 
         # Otherwise compute the bound using LP
-        return self.compute_lp_bound(delta, na_delta, full_lp=True)
+        return self.compute_lp_bound(
+            branch_on_full_lp=self.branch_on_full_lp, delta=delta, na_delta=na_delta
+        )
 
     def get_state(self):
         """Get the current state of the bounding algorithm.
