@@ -10,7 +10,7 @@ from ortools.linear_solver.python.model_builder import ModelBuilder
 def get_linear_program_from_col_subset_gurobi(
     matrix: np.ndarray,
     rounded_columns: set,
-) -> tuple[gp.Model, gp.tupledict[tuple[int, int], gp.Var]]:
+) -> tuple[gp.Model, defaultdict[tuple[int, int], gp.Var]]:
     # WARN: Can use type np.bool only because there are no na values
     matrix = matrix.astype(np.bool)
     m, n = matrix.shape
@@ -42,6 +42,9 @@ def get_linear_program_from_col_subset_gurobi(
 
     # All created variables correspond to zeros in the matrix
     model.setObjective(gp.quicksum(x), gp.GRB.MINIMIZE)
+
+    # Set so that the user does not accidentally create more variables
+    x.default_factory = None
 
     return model, x
 
@@ -82,6 +85,9 @@ def get_linear_program_from_col_subset(
 
     # All created variables are correspond to zeros in the matrix
     model.minimize(sum(var for var in vars.values()))
+
+    # Set so that the user does not accidentally create more variables
+    vars.default_factory = None
 
     return model, vars
 
