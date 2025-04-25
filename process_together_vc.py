@@ -9,6 +9,8 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 
+from utils import is_conflict_free_gusfield_and_get_two_columns_in_coflicts
+
 
 def make_graph(A):
     """Given a matrix A of mutations and cell samples, return a graph G where
@@ -60,13 +62,61 @@ def vertex_cover_pp(G):
     return np.ceil(flipped_bits / 2), vc
 
 
-def vetex_cover_process_edges_together(A: np.ndarray, get_small_vc=True):
+def vetex_cover_ub_greedy(A: np.ndarray, randomized=False):
+    num_ones_og = A.sum()
+    # Don't clobber the original matrix
+    B = np.copy(A.astype(np.bool))
+    n = B.shape[1]
+    cols = np.random.permutation(n)
+    for p, q in it.combinations(cols, 2):
+        col_p = B[:, p]
+        col_q = B[:, q]
+        has_one_one = any(col_p & col_q)
+        if not has_one_one:
+            continue
+        zero_ones = np.logical_and(~col_p, col_q)
+        one_zeros = np.logical_and(col_p, ~col_q)
+
+        # Resolve p, q conflict by flipping the cheaper of the two
+        num_zero_ones = zero_ones.sum()
+        num_one_zeros = one_zeros.sum()
+
+        # print(f"{num_zero_ones=} {num_one_zeros=}")
+        if not (num_one_zeros and num_zero_ones):
+            continue
+
+        # print(f"Before: {zero_ones.sum()} and {one_zeros.sum()}")
+        if randomized:
+            probability_flip_zero_ones = num_zero_ones / (num_zero_ones + num_one_zeros)
+            flip_zero_ones = np.random.rand() < probability_flip_zero_ones
+        else:
+            flip_zero_ones = num_zero_ones < num_one_zeros
+
+        if flip_zero_ones:
+            # if num_zero_ones < num_one_zeros:
+            B[zero_ones, p] = True
+        else:
+            B[one_zeros, q] = True
+
+    is_cf, col_pair = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(B, 3)
+    if is_cf:
+        return B.sum() - num_ones_og
+    else:
+        print("not conflict free :(")
+        return float("inf")
+
+
+def vetex_cover_process_edges_together(A: np.ndarray):
+    """NOTE: Better lower bounds with vertex_cover_pp and better upper bounds
+    and vetex_cover_ub_greedy.
+    """
     num_ones_og = A.sum()
     # Don't clobber the original matrix
     B = np.copy(A.astype(np.bool))
     n = B.shape[1]
     for p in range(n):
         for q in range(p + 1, n):
+            cur_B_sum = B.sum()
             col_p = B[:, p]
             col_q = B[:, q]
             has_one_one = any(col_p & col_q)
@@ -85,22 +135,31 @@ def vetex_cover_process_edges_together(A: np.ndarray, get_small_vc=True):
             if not (num_one_zeros and num_zero_ones):
                 continue
 
-            flip_zero_ones = num_zero_ones < num_one_zeros
-            if not get_small_vc:
-                flip_zero_ones = not flip_zero_ones
-            if flip_zero_ones:
-                # assert B[zero_ones, p].sum() == 0
-                # print("col before assignment", B[zero_ones, p])
-                B[zero_ones, p] = True
-                # print("col after assignment", B[zero_ones, p])
-                # print(f"Flipped {one_zeros.sum()} entries")
-            else:
-                # assert B[one_zeros, q].sum() == 0
-                # print("col before assignment", B[one_zeros, q])
-                B[one_zeros, q] = True
-                # print("col after assignment", B[one_zeros, q])
-                # print(f"Flipped {zero_ones.sum()} entries")
-            # print(B.sum(), " ", num_ones_og)
+            # Drop excess indeces. Only want to flip min(num 10s, num 01s) from
+            # each column
+
+            # print(f"Before: {zero_ones.sum()} and {one_zeros.sum()}")
+            if num_zero_ones > num_one_zeros:
+                ixs_to_drop = np.random.choice(
+                    np.nonzero(zero_ones)[0],
+                    size=num_zero_ones - num_one_zeros,
+                    replace=False,
+                )
+                zero_ones[ixs_to_drop] = False
+            elif num_zero_ones < num_one_zeros:
+                ixs_to_drop = np.random.choice(
+                    np.nonzero(one_zeros)[0],
+                    size=num_one_zeros - num_zero_ones,
+                    replace=False,
+                )
+                one_zeros[ixs_to_drop] = False
+
+            assert zero_ones.sum() == one_zeros.sum()
+            # print(f"Flipping {zero_ones.sum()} and {one_zeros.sum()}")
+            B[zero_ones, p] = True
+            B[one_zeros, q] = True
+
+            assert cur_B_sum + 2 * zero_ones.sum() == B.sum()
             assert B.sum() != num_ones_og
 
     return B.sum() - num_ones_og
@@ -122,18 +181,23 @@ if __name__ == "__main__":
 
     best_lb_tog = 0
     best_ub_tog = float("inf")
-    NUM_ITS = 50
+
+    best_ub_greedy = float("inf")
+
+    NUM_ITS = 200
     for i in range(NUM_ITS):
         lb, flipped_bits = vertex_cover_pp(G)
         ub = len(flipped_bits)
         best_lb = max(lb, best_lb)
         best_ub = min(ub, best_ub)
 
-        get_small_vc = i < NUM_ITS // 2
-        other_num_flipped_bits = vetex_cover_process_edges_together(A, get_small_vc)
+        other_num_flipped_bits = vetex_cover_process_edges_together(A)
         other_lb = np.ceil(other_num_flipped_bits / 2)
         best_lb_tog = max(other_lb, best_lb_tog)
         best_ub_tog = min(other_num_flipped_bits, best_ub_tog)
+
+        greedy_ub = vetex_cover_ub_greedy(A)
+        best_ub_greedy = min(greedy_ub, best_ub_greedy)
 
     end = time.time()
     print(f"Runtime: {end - start:.3f} s")
@@ -146,4 +210,9 @@ if __name__ == "__main__":
     )
     print(
         f"It takes at most {best_ub_tog} bit flips to turn A into a perfect phylogeny."
+    )
+
+    print("\nUsing greedy...")
+    print(
+        f"It takes at most {best_ub_greedy} bit flips to turn A into a perfect phylogeny."
     )
