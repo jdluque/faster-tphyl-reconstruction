@@ -683,6 +683,10 @@ class TwoSatBounding(BoundingAlgAbstract):
                 return 0
         assert False, "get_priority did not return anything!"
 
+    def notify_new_best_node(self, node, current):
+        bound = node.state[3]
+        print("New best node with bound: ", bound)
+
 
 class LinearProgrammingBounding(BoundingAlgAbstract):
     def __init__(
