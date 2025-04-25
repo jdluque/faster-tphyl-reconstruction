@@ -129,11 +129,9 @@ def vetex_cover_ub_greedy(A: np.ndarray, randomized=False):
         num_zero_ones = zero_ones.sum()
         num_one_zeros = one_zeros.sum()
 
-        # print(f"{num_zero_ones=} {num_one_zeros=}")
         if not (num_one_zeros and num_zero_ones):
             continue
 
-        # print(f"Before: {zero_ones.sum()} and {one_zeros.sum()}")
         if randomized:
             probability_flip_zero_ones = num_zero_ones / (num_zero_ones + num_one_zeros)
             flip_zero_ones = np.random.rand() < probability_flip_zero_ones
@@ -141,7 +139,6 @@ def vetex_cover_ub_greedy(A: np.ndarray, randomized=False):
             flip_zero_ones = num_zero_ones < num_one_zeros
 
         if flip_zero_ones:
-            # if num_zero_ones < num_one_zeros:
             B[zero_ones, p] = True
         else:
             B[one_zeros, q] = True
@@ -172,21 +169,17 @@ def vetex_cover_process_edges_together(A: np.ndarray):
                 continue
             zero_ones = np.logical_and(~col_p, col_q)
             one_zeros = np.logical_and(col_p, ~col_q)
-            # print(B[zero_ones, p].sum())
-            # print(B[one_zeros, q].sum())
 
             # Resolve p, q conflict by flipping the cheaper of the two
             num_zero_ones = zero_ones.sum()
             num_one_zeros = one_zeros.sum()
 
-            # print(f"{num_zero_ones=} {num_one_zeros=}")
             if not (num_one_zeros and num_zero_ones):
                 continue
 
             # Drop excess indeces. Only want to flip min(num 10s, num 01s) from
             # each column
 
-            # print(f"Before: {zero_ones.sum()} and {one_zeros.sum()}")
             if num_zero_ones > num_one_zeros:
                 ixs_to_drop = np.random.choice(
                     np.nonzero(zero_ones)[0],
@@ -203,7 +196,6 @@ def vetex_cover_process_edges_together(A: np.ndarray):
                 one_zeros[ixs_to_drop] = False
 
             assert zero_ones.sum() == one_zeros.sum()
-            # print(f"Flipping {zero_ones.sum()} and {one_zeros.sum()}")
             B[zero_ones, p] = True
             B[one_zeros, q] = True
 
@@ -223,6 +215,14 @@ def get_bounds(A: np.ndarray, iterations: int = 1):
         # TODO: Make flipped bits a sparse matrix I can add to A to test whether the new matrix is_cf
         # Have the second returned value be the upper bound
         lb, flipped_bits = vertex_cover_pp_from_edgelist(edge_list)
+        B = np.copy(A)
+        for x, y in flipped_bits:
+            B[x, y] = True
+        is_cf, _ = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(B, None)
+        if is_cf:
+            if len(flipped_bits) < best_ub:
+                best_ub = len(flipped_bits)
+                print("new ub found by vertex_cover_pp_from_edgelist()")
 
         best_lb = max(lb, best_lb)
 
