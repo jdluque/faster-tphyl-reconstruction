@@ -5,34 +5,10 @@ of bit flips for a perfect phyolgeny by solving a related vertex cover instance.
 import itertools as it
 import time
 
-import networkx as nx
 import numpy as np
 import pandas as pd
 
 from utils import is_conflict_free_gusfield_and_get_two_columns_in_coflicts
-
-
-def make_graph(A):
-    """Given a matrix A of mutations and cell samples, return a graph G where
-    nodes are zeros of A, and edges occur between zeros that appear in a
-    three-gametes rule violation together.
-    """
-    m, n = A.shape
-    edge_list = []
-    for p, q in it.combinations(range(n), 2):
-        col_p, col_q = A[:, p], A[:, q]
-        has_one_one = any(np.logical_and(col_p, col_q))
-        if not has_one_one:
-            continue
-        zero_ones = np.nonzero(np.logical_and(~col_p, col_q))[0]
-        one_zeros = np.nonzero(np.logical_and(col_p, ~col_q))[0]
-        for row1 in zero_ones:
-            for row2 in one_zeros:
-                # For every 10 and 01 in conflict, at least one is (fractionally) flipped
-                edge_list.append(((row1, p), (row2, q)))
-
-    G = nx.Graph(edge_list)
-    return G
 
 
 def get_conflict_edgelist(A):
@@ -72,22 +48,6 @@ def min_unweighted_vertex_cover_from_edgelist(edge_list: list):
     return cover
 
 
-def min_unweighted_vertex_cover(G: nx.Graph):
-    """For unweightred case, no need to use local ratio techniques used in
-    networkx.algorithms.min_weighted_vertex_cover().
-    """
-    cover = set()
-    edges = np.random.permutation(list(G.edges()))
-    for u, v in edges:
-        u = tuple(u)
-        v = tuple(v)
-        if u in cover or v in cover:
-            continue
-        cover.add(u)
-        cover.add(v)
-    return cover
-
-
 def vertex_cover_pp_from_edgelist(edge_list):
     """Returns
     1. a lower bound on the number of bit flips required to make A a
@@ -95,17 +55,6 @@ def vertex_cover_pp_from_edgelist(edge_list):
     2. a set of (i,j) indices of bits flipped.
     """
     vc = min_unweighted_vertex_cover_from_edgelist(edge_list)
-    flipped_bits = len(vc)
-    return np.ceil(flipped_bits / 2), vc
-
-
-def vertex_cover_pp(G):
-    """Returns
-    1. a lower bound on the number of bit flips required to make A a
-    perfect phylogeny by solving a related weighted vertex cover instance.
-    2. a set of (i,j) indices of bits flipped.
-    """
-    vc = min_unweighted_vertex_cover(G)
     flipped_bits = len(vc)
     return np.ceil(flipped_bits / 2), vc
 
