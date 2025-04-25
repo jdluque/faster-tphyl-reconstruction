@@ -215,6 +215,9 @@ def get_bounds(A: np.ndarray, iterations: int = 1):
         # TODO: Make flipped bits a sparse matrix I can add to A to test whether the new matrix is_cf
         # Have the second returned value be the upper bound
         lb, flipped_bits = vertex_cover_pp_from_edgelist(edge_list)
+
+        # TODO: This upper bound probably does not beat the other one. Consider
+        # removing this block of code if it is not helping.
         B = np.copy(A)
         for x, y in flipped_bits:
             B[x, y] = True
