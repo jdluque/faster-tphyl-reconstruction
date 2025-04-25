@@ -35,6 +35,43 @@ def make_graph(A):
     return G
 
 
+def get_conflict_edgelist(A):
+    """Given a matrix A of mutations and cell samples, return an edgelist of
+    corresponding to a vertex cover instance of the matrix A. I.e., edges occur
+    between zeros in conflict.
+    """
+    n = A.shape[1]
+    edge_list = []
+    for p, q in it.combinations(range(n), 2):
+        col_p, col_q = A[:, p], A[:, q]
+        has_one_one = any(np.logical_and(col_p, col_q))
+        if not has_one_one:
+            continue
+        zero_ones = np.nonzero(np.logical_and(~col_p, col_q))[0]
+        one_zeros = np.nonzero(np.logical_and(col_p, ~col_q))[0]
+
+        edge_list.extend(
+            [((row1, p), (row2, q)) for row1 in zero_ones for row2 in one_zeros]
+        )
+
+    return edge_list
+
+
+def min_unweighted_vertex_cover_from_edgelist(edge_list: list):
+    """For unweightred case, no need to use local ratio techniques used in
+    networkx.algorithms.min_weighted_vertex_cover().
+    """
+    cover = set()
+    ixs = np.random.permutation(len(edge_list))
+    for i in ixs:
+        u, v = edge_list[i]
+        if u in cover or v in cover:
+            continue
+        cover.add(u)
+        cover.add(v)
+    return cover
+
+
 def min_unweighted_vertex_cover(G: nx.Graph):
     """For unweightred case, no need to use local ratio techniques used in
     networkx.algorithms.min_weighted_vertex_cover().
@@ -49,6 +86,17 @@ def min_unweighted_vertex_cover(G: nx.Graph):
         cover.add(u)
         cover.add(v)
     return cover
+
+
+def vertex_cover_pp_from_edgelist(edge_list):
+    """Returns
+    1. a lower bound on the number of bit flips required to make A a
+    perfect phylogeny by solving a related weighted vertex cover instance.
+    2. a set of (i,j) indices of bits flipped.
+    """
+    vc = min_unweighted_vertex_cover_from_edgelist(edge_list)
+    flipped_bits = len(vc)
+    return np.ceil(flipped_bits / 2), vc
 
 
 def vertex_cover_pp(G):
@@ -165,6 +213,25 @@ def vetex_cover_process_edges_together(A: np.ndarray):
     return B.sum() - num_ones_og
 
 
+def get_bounds(A: np.ndarray, iterations: int = 1):
+    A = A.astype(np.bool)
+    best_lb = 0
+    best_ub = float("inf")
+
+    edge_list = get_conflict_edgelist(A)
+    for _ in range(iterations):
+        # TODO: Make flipped bits a sparse matrix I can add to A to test whether the new matrix is_cf
+        # Have the second returned value be the upper bound
+        lb, flipped_bits = vertex_cover_pp_from_edgelist(edge_list)
+
+        best_lb = max(lb, best_lb)
+
+        greedy_ub = vetex_cover_ub_greedy(A)
+        best_ub = min(greedy_ub, best_ub)
+
+    return best_lb, best_ub
+
+
 if __name__ == "__main__":
     df = pd.read_csv("example/data2.SC", sep="\t", index_col=0)
     # df = pd.read_csv("real/melanoma20_clean.tsv", sep="\t", index_col=0)
@@ -172,47 +239,20 @@ if __name__ == "__main__":
     df = (df == 1).astype(np.bool)
     A = df.to_numpy(dtype=np.bool)
     start = time.time()
-    G = make_graph(A)
     graph_build_time = time.time() - start
     print(f"{np.sum(A)=}")
     print(A.shape)
     best_lb = 0
     best_ub = float("inf")
 
-    best_lb_tog = 0
-    best_ub_tog = float("inf")
+    edge_list = get_conflict_edgelist(A)
 
-    best_ub_greedy = float("inf")
+    NUM_ITS = 8
+    print(f"running {NUM_ITS} iterations")
 
-    NUM_ITS = 200
-    for i in range(NUM_ITS):
-        lb, flipped_bits = vertex_cover_pp(G)
-        ub = len(flipped_bits)
-        best_lb = max(lb, best_lb)
-        best_ub = min(ub, best_ub)
-
-        other_num_flipped_bits = vetex_cover_process_edges_together(A)
-        other_lb = np.ceil(other_num_flipped_bits / 2)
-        best_lb_tog = max(other_lb, best_lb_tog)
-        best_ub_tog = min(other_num_flipped_bits, best_ub_tog)
-
-        greedy_ub = vetex_cover_ub_greedy(A)
-        best_ub_greedy = min(greedy_ub, best_ub_greedy)
+    lb, ub = get_bounds(A, NUM_ITS)
+    print(f"Best lb {lb}")
+    print(f"Best ub {ub}")
 
     end = time.time()
     print(f"Runtime: {end - start:.3f} s")
-    print(f"It takes at least {best_lb} bit flips to turn A into a perfect phylogeny.")
-    print(f"It takes at most {best_ub} bit flips to turn A into a perfect phylogeny.")
-
-    print("\nBy flipping together...")
-    print(
-        f"It takes at least {best_lb_tog} bit flips to turn A into a perfect phylogeny."
-    )
-    print(
-        f"It takes at most {best_ub_tog} bit flips to turn A into a perfect phylogeny."
-    )
-
-    print("\nUsing greedy...")
-    print(
-        f"It takes at most {best_ub_greedy} bit flips to turn A into a perfect phylogeny."
-    )
