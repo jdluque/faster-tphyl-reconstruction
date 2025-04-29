@@ -4,10 +4,11 @@
 import numpy as np
 import cython
 
+from utils import is_conflict_free_gusfield_and_get_two_columns_in_coflicts
+
 from libcpp.vector cimport vector
 from libcpp.pair cimport pair
 from libcpp.unordered_set cimport unordered_set
-from libcpp import cmath
 cimport numpy as cnp
 
 cnp.import_array()
@@ -57,6 +58,7 @@ def min_unweighted_vertex_cover_from_edgelist(edge_list: list):
     """
     cdef unordered_set[int] cover
 
+    # TODO: Use a random device and swaps to shuffle the array instead of calling to numpy
     cdef cnp.ndarray[DTYPE_t, ndim=1] ixs = np.random.permutation(len(edge_list))
     cdef int i, u, v
     for i in ixs:
@@ -80,4 +82,46 @@ def vertex_cover_pp_from_edgelist(edge_list):
     vc = min_unweighted_vertex_cover_from_edgelist(edge_list)
     flipped_bits = len(vc)
     return np.ceil(flipped_bits / 2), vc
+
+
+def vertex_cover_ub_greedy(cnp.ndarray[DTYPE_t, ndim=2] A):
+    cdef num_ones_og = A.sum()
+    # Don't clobber the original matrix
+    cdef cnp.ndarray[DTYPE_t, ndim=2] B = np.copy(A)
+    cdef int m = B.shape[0], n = B.shape[1]
+    cdef cnp.ndarray[DTYPE_t, ndim=1] ixs = np.random.permutation(n)
+
+    cdef int i, p, q
+    cdef int has_one_one
+    cdef vector[int] one_zeros, zero_ones
+
+    for p in range(n):
+        for q in range(p+1, n):
+            for i in range(m):
+                if A[i, p] and A[i, q]:
+                    has_one_one = 1
+                elif A[i, p] and not A[i, q]:
+                    one_zeros.push_back(i)
+                elif not A[i, p] and A[i, q]:
+                    zero_ones.push_back(i)
+
+            if not has_one_one and zero_ones.size() > 0 and one_zeros.size() > 0:
+                # Resolve p, q conflict by flipping the cheaper of the two
+                # TODO: Implement randomized later if desired
+                if zero_ones.size() < one_zeros.size():
+                    for i in zero_ones:
+                        B[zero_ones, p] = 1
+                else:
+                    for i in one_zeros:
+                        B[one_zeros, q] = 1
+
+            one_zeros.clear()
+            zero_ones.clear()
+
+    is_cf, col_pair = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(B, 3)
+    if is_cf:
+        return B.sum() - num_ones_og
+    else:
+        print("not conflict free :(")
+        return float("inf")
 

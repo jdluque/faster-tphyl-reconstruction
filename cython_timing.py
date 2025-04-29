@@ -2,7 +2,11 @@ import time
 
 import numpy as np
 import pandas as pd
-from vc_cython import get_conflict_edgelist, min_unweighted_vertex_cover_from_edgelist
+from vc_cython import (
+    get_conflict_edgelist,
+    min_unweighted_vertex_cover_from_edgelist,
+    vertex_cover_ub_greedy,
+)
 
 import process_together_vc
 from vc import make_graph
@@ -34,7 +38,11 @@ if __name__ == "__main__":
     edge_list = list(edge_list)
     get_vc_time = time.time()
     min_unweighted_vertex_cover_from_edgelist(edge_list)
-    print(f"Python vectorized Runtime: {time.time() - get_vc_time:.5f} s")
+    print(f"Cython get vertex cover Runtime: {time.time() - get_vc_time:.5f} s")
+
+    get_vc_ub = time.time()
+    vertex_cover_ub_greedy(A)
+    print(f"Python greedy vertex cover ub Runtime: {time.time() - get_vc_ub:.5f} s")
 
     NUM_ITS = 8
     print(f"running {NUM_ITS} iterations")
