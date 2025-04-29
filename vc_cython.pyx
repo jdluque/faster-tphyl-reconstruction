@@ -9,6 +9,7 @@ from utils import is_conflict_free_gusfield_and_get_two_columns_in_coflicts
 from libcpp.vector cimport vector
 from libcpp.pair cimport pair
 from libcpp.unordered_set cimport unordered_set
+from libc.limits cimport INT_MIN, INT_MAX
 cimport numpy as cnp
 
 cnp.import_array()
@@ -52,35 +53,27 @@ def get_conflict_edgelist(cnp.ndarray[DTYPE_t, ndim=2] A):
 
     return edge_list
 
-def min_unweighted_vertex_cover_from_edgelist(edge_list: list):
+cdef int min_unweighted_vertex_cover_from_edgelist(vector[pair[int, int]] edge_list):
     """For unweightred case, no need to use local ratio techniques used in
     networkx.algorithms.min_weighted_vertex_cover().
     """
     cdef unordered_set[int] cover
 
     # TODO: Use a random device and swaps to shuffle the array instead of calling to numpy
-    cdef cnp.ndarray[DTYPE_t, ndim=1] ixs = np.random.permutation(len(edge_list))
+    cdef int num_edges = edge_list.size()
+    cdef cnp.ndarray[DTYPE_t, ndim=1] ixs = np.random.permutation(num_edges)
     cdef int i, u, v
-    for i in ixs:
-        u, v = edge_list[i]
+    for i in range(num_edges):
+        # u, v = edge_list[i]
+        u = edge_list[ixs[i]].first
+        v = edge_list[ixs[i]].second
         if cover.find(u) == cover.end() or cover.find(v) == cover.end():
             cover.insert(u)
             cover.insert(v)
 
     if cover.size() % 2 == 0:
-        return cover.size() / 2
-    return cover.size() / 2 + 1
-
-
-def vertex_cover_pp_from_edgelist(edge_list):
-    """Returns
-    1. a lower bound on the number of bit flips required to make A a
-    perfect phylogeny by solving a related weighted vertex cover instance.
-    2. a set of (i,j) indices of bits flipped.
-    """
-    vc = min_unweighted_vertex_cover_from_edgelist(edge_list)
-    flipped_bits = len(vc)
-    return np.ceil(flipped_bits / 2), vc
+        return cover.size() // 2
+    return cover.size() // 2 + 1
 
 
 def vertex_cover_ub_greedy(cnp.ndarray[DTYPE_t, ndim=2] A):
@@ -135,3 +128,19 @@ def vertex_cover_ub_greedy(cnp.ndarray[DTYPE_t, ndim=2] A):
         print("not conflict free :(")
         return float("inf")
 
+# TODO: Wrap the above functions in a get_bounds() functiondef get_bounds(A: np.ndarray, iterations: int = 1):
+def get_bounds(cnp.ndarray[DTYPE_t, ndim=2] A, int iterations = 1):
+    cdef int best_lb = 0
+    cdef int best_ub = INT_MAX
+    cdef int i, lb, greedy_ub
+    cdef vector[pair[int, int]] edge_list = get_conflict_edgelist(A)
+    for i in range(iterations):
+        # Have the second returned value be the upper bound
+        lb = min_unweighted_vertex_cover_from_edgelist(edge_list)
+        print("lb found ", lb)
+        best_lb = max(lb, best_lb)
+
+        greedy_ub = vertex_cover_ub_greedy(A)
+        best_ub = min(greedy_ub, best_ub)
+
+    return best_lb, best_ub
