@@ -14,22 +14,6 @@ cdef extern from "pair_hash.h":
     cdef cppclass pair_hash:
         size_t operator()(const pair[int, int]&) const
 
-
-# Now declare the specialization of std::unordered_set using our custom hash
-# cdef extern from "<unordered_set>" namespace "std":
-#     cdef cppclass unordered_set[T, Hash]:
-#         ctypedef T value_type
-#         # Declare the methods you want to use from C++
-#         void insert(const value_type& value)
-#         size_t size() const
-#         size_t count(const value_type& value) const
-        # You would need to declare iterators if you want to loop in Cython
-        # e.g.,
-        # ctypedef __insert_return_type
-        # ctypedef __iterator
-        # __iterator begin()
-        # __iterator end()
-
 import numpy as np
 import cython
 
@@ -105,37 +89,26 @@ cdef int min_unweighted_vertex_cover_from_edgelist(vector[pair_of_pairs_t] edge_
     cdef int_pair_t lpair, rpair
     cdef int lhash, rhash
     for i in range(num_edges):
-        # u, v = edge_list[i]
         lpair = edge_list[ixs[i]].first
         rpair = edge_list[ixs[i]].second
         found_one = 0
-        # lpair = edge_list[i].first
-        # rpair = edge_list[i].second
-        # print(f"{lpair}")
-        # lhash = (hash(lpair.first) << 6) ^  hash(lpair.second) + 0x9e3779b9 + (hash(lpair.first) >> 2)
-        # rhash = (hash(rpair.first) << 6) ^  hash(rpair.second) + 0x9e3779b9 + (hash(rpair.first) >> 2)
-        # lhash = (hash(lpair.first) << 1) ^  hash(lpair.second)
-        # rhash = (hash(rpair.first) << 1) ^  hash(rpair.second)
-        # h1 ^= h2 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2);
-        # if cover.find(lhash) == cover.end() or cover.find(rhash) == cover.end():
 
         it = cover.find(lpair)
         while found_one == 0 and it != cover.end():
             if deref(it) == lpair:
                 found_one = 1
             inc(it)
+
         it = cover.find(rpair)
         while found_one == 0 and it != cover.end():
             if deref(it) == rpair:
                 found_one = 1
             inc(it)
+
         if found_one == 0:
             cover.insert(lpair)
             cover.insert(rpair)
 
-
-    # print(cover)
-    # print(cover.size())
     if cover.size() % 2 == 0:
         return cover.size() // 2
     return cover.size() // 2 + 1
@@ -238,13 +211,13 @@ def vertex_cover_init(cnp.ndarray[DTYPE_t, ndim=2] A):
     return flips
 
 
-# TODO: Wrap the above functions in a get_bounds() function
 def get_bounds(cnp.ndarray[DTYPE_t, ndim=2] A, int iterations = 1):
     cdef int best_lb = 0
     cdef int best_ub = INT_MAX
     cdef int i, lb, greedy_ub
     cdef vector[pair_of_pairs_t] edge_list = get_conflict_edgelist(A)
     cdef vector[pair[int, int]] flips
+
     for i in range(iterations):
         # Have the second returned value be the upper bound
         lb = min_unweighted_vertex_cover_from_edgelist(edge_list)
