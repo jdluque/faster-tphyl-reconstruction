@@ -85,15 +85,13 @@ def vertex_cover_pp_from_edgelist(edge_list):
 
 
 def vertex_cover_ub_greedy(cnp.ndarray[DTYPE_t, ndim=2] A):
-    cdef num_ones_og = A.sum()
-    # Don't clobber the original matrix
-    cdef cnp.ndarray[DTYPE_t, ndim=2] B = np.copy(A)
-    cdef int m = B.shape[0], n = B.shape[1]
+    cdef int m = A.shape[0], n = A.shape[1]
     cdef cnp.ndarray[DTYPE_t, ndim=1] ixs = np.random.permutation(n)
 
-    cdef int i, p, q
-    cdef int has_one_one
+    cdef int i, j, p, q, num_flips, row, col
+    cdef int has_one_one = 0
     cdef vector[int] one_zeros, zero_ones
+    cdef vector[pair[int, int]] flips
 
     for p in range(n):
         for q in range(p+1, n):
@@ -110,18 +108,30 @@ def vertex_cover_ub_greedy(cnp.ndarray[DTYPE_t, ndim=2] A):
                 # TODO: Implement randomized later if desired
                 if zero_ones.size() < one_zeros.size():
                     for i in zero_ones:
-                        B[zero_ones, p] = 1
+                        A[i, p] = 1
+                        flips.push_back(pair[int, int](i, p))
                 else:
                     for i in one_zeros:
-                        B[one_zeros, q] = 1
+                        A[i, q] = 1
+                        flips.push_back(pair[int, int](i, q))
 
             has_one_one = 0
             one_zeros.clear()
             zero_ones.clear()
 
-    is_cf, col_pair = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(B, 3)
+    num_flips = flips.size()
+
+    # TODO: Implement me in cython
+    is_cf, col_pair = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(A, 3)
+
+    # Undo the matrix flips
+    for i in range(flips.size()):
+        row = flips[i].first
+        col = flips[i].second
+        A[row, col] = 0
+
     if is_cf:
-        return B.sum() - num_ones_og
+        return int(num_flips)
     else:
         print("not conflict free :(")
         return float("inf")

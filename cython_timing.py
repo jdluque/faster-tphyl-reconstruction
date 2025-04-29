@@ -41,8 +41,9 @@ if __name__ == "__main__":
     print(f"Cython get vertex cover Runtime: {time.time() - get_vc_time:.5f} s")
 
     get_vc_ub = time.time()
-    vertex_cover_ub_greedy(A)
+    ub = vertex_cover_ub_greedy(A)
     print(f"Python greedy vertex cover ub Runtime: {time.time() - get_vc_ub:.5f} s")
+    print(f"{ub=}")
 
     NUM_ITS = 8
     print(f"running {NUM_ITS} iterations")
