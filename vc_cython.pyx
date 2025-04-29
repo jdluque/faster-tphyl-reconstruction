@@ -6,6 +6,8 @@ import cython
 
 from libcpp.vector cimport vector
 from libcpp.pair cimport pair
+from libcpp.unordered_set cimport unordered_set
+from libcpp import cmath
 cimport numpy as cnp
 
 cnp.import_array()
@@ -53,15 +55,20 @@ def min_unweighted_vertex_cover_from_edgelist(edge_list: list):
     """For unweightred case, no need to use local ratio techniques used in
     networkx.algorithms.min_weighted_vertex_cover().
     """
-    cover = set()
-    ixs = np.random.permutation(len(edge_list))
+    cdef unordered_set[int] cover
+
+    cdef cnp.ndarray[DTYPE_t, ndim=1] ixs = np.random.permutation(len(edge_list))
+    cdef int i, u, v
     for i in ixs:
         u, v = edge_list[i]
-        if u in cover or v in cover:
+        if cover.find(u) == cover.end() or cover.find(v) == cover.end():
             continue
-        cover.add(u)
-        cover.add(v)
-    return cover
+        cover.insert(u)
+        cover.insert(v)
+
+    if cover.size() % 2 == 0:
+        return cover.size() / 2
+    return cover.size() / 2 + 1
 
 
 def vertex_cover_pp_from_edgelist(edge_list):

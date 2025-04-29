@@ -2,7 +2,7 @@ import time
 
 import numpy as np
 import pandas as pd
-from vc_cython import get_conflict_edgelist
+from vc_cython import get_conflict_edgelist, min_unweighted_vertex_cover_from_edgelist
 
 import process_together_vc
 from vc import make_graph
@@ -30,6 +30,11 @@ if __name__ == "__main__":
     nx_graph_build_time = time.time()
     edge_list = make_graph(A)
     print(f"Networkx Runtime: {time.time() - nx_graph_build_time:.5f} s")
+
+    edge_list = list(edge_list)
+    get_vc_time = time.time()
+    min_unweighted_vertex_cover_from_edgelist(edge_list)
+    print(f"Python vectorized Runtime: {time.time() - get_vc_time:.5f} s")
 
     NUM_ITS = 8
     print(f"running {NUM_ITS} iterations")
