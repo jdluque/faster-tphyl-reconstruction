@@ -64,9 +64,8 @@ def min_unweighted_vertex_cover_from_edgelist(edge_list: list):
     for i in ixs:
         u, v = edge_list[i]
         if cover.find(u) == cover.end() or cover.find(v) == cover.end():
-            continue
-        cover.insert(u)
-        cover.insert(v)
+            cover.insert(u)
+            cover.insert(v)
 
     if cover.size() % 2 == 0:
         return cover.size() / 2
