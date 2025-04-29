@@ -28,11 +28,11 @@ if __name__ == "__main__":
     print(f"Cython Runtime: {time.time() - cython_graph_build_time:.5f} s")
 
     numpy_graph_build_time = time.time()
-    edge_list = process_together_vc.get_conflict_edgelist(A)
+    edge_list = process_together_vc.get_conflict_edgelist(A.astype(np.bool))
     print(f"Python vectorized Runtime: {time.time() - numpy_graph_build_time:.5f} s")
 
     nx_graph_build_time = time.time()
-    edge_list = make_graph(A)
+    edge_list = make_graph(A.astype(np.bool))
     print(f"Networkx Runtime: {time.time() - nx_graph_build_time:.5f} s")
 
     edge_list = list(edge_list)
