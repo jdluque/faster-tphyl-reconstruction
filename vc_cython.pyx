@@ -105,7 +105,7 @@ def vertex_cover_ub_greedy(cnp.ndarray[DTYPE_t, ndim=2] A):
                 elif not A[i, p] and A[i, q]:
                     zero_ones.push_back(i)
 
-            if not has_one_one and zero_ones.size() > 0 and one_zeros.size() > 0:
+            if has_one_one and zero_ones.size() > 0 and one_zeros.size() > 0:
                 # Resolve p, q conflict by flipping the cheaper of the two
                 # TODO: Implement randomized later if desired
                 if zero_ones.size() < one_zeros.size():
@@ -115,6 +115,7 @@ def vertex_cover_ub_greedy(cnp.ndarray[DTYPE_t, ndim=2] A):
                     for i in one_zeros:
                         B[one_zeros, q] = 1
 
+            has_one_one = 0
             one_zeros.clear()
             zero_ones.clear()
 
