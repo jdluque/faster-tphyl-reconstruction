@@ -35,6 +35,6 @@ if __name__ == "__main__":
     print(f"running {NUM_ITS} iterations")
 
     get_vc_ub = time.time()
-    lb, ub = get_bounds(A, iterations=NUM_ITS)
+    lb, ub, flips = get_bounds(A, iterations=NUM_ITS)
     print(f"Python get_bounds Runtime: {time.time() - get_vc_ub:.5f} s")
     print(f"{lb=} {ub=}")

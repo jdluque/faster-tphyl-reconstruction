@@ -43,6 +43,7 @@ from utils import (
     get_effective_matrix,
     is_conflict_free_gusfield_and_get_two_columns_in_coflicts,
 )
+from vertex_cover_bounding import VertexCoverBounding
 
 rec_num = 0
 
@@ -65,6 +66,7 @@ def solve_by_BnB(matrix_in, na_value, which_bounding):
         LinearProgrammingBounding("GLOP"),
         LinearProgrammingBounding("PDLP"),
         LinearProgrammingBoundingGurobi(),
+        VertexCoverBounding(),
     ]
     result = bnb_solve(
         matrix_in, bounding_algorithm=bounding_algs[which_bounding], na_value=na_value
