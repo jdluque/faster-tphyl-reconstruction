@@ -17,7 +17,7 @@ cnp.import_array()
 DTYPE = np.int64
 ctypedef cnp.int64_t DTYPE_t
 
-def get_conflict_edgelist(cnp.ndarray[DTYPE_t, ndim=2] A):
+cdef vector[pair[int, int]] get_conflict_edgelist(cnp.ndarray[DTYPE_t, ndim=2] A) noexcept:
     """Given a matrix A of mutations and cell samples, return an edgelist of
     corresponding to a vertex cover instance of the matrix A. I.e., edges occur
     between zeros in conflict.
@@ -53,7 +53,7 @@ def get_conflict_edgelist(cnp.ndarray[DTYPE_t, ndim=2] A):
 
     return edge_list
 
-cdef int min_unweighted_vertex_cover_from_edgelist(vector[pair[int, int]] edge_list):
+cdef int min_unweighted_vertex_cover_from_edgelist(vector[pair[int, int]] edge_list) noexcept:
     """For unweightred case, no need to use local ratio techniques used in
     networkx.algorithms.min_weighted_vertex_cover().
     """
@@ -75,8 +75,7 @@ cdef int min_unweighted_vertex_cover_from_edgelist(vector[pair[int, int]] edge_l
         return cover.size() // 2
     return cover.size() // 2 + 1
 
-
-def vertex_cover_ub_greedy(cnp.ndarray[DTYPE_t, ndim=2] A):
+cdef int vertex_cover_ub_greedy(cnp.ndarray[DTYPE_t, ndim=2] A) noexcept:
     cdef int m = A.shape[0], n = A.shape[1]
     cdef cnp.ndarray[DTYPE_t, ndim=1] ixs = np.random.permutation(n)
 
@@ -123,10 +122,9 @@ def vertex_cover_ub_greedy(cnp.ndarray[DTYPE_t, ndim=2] A):
         A[row, col] = 0
 
     if is_cf:
-        return int(num_flips)
+        return num_flips
     else:
-        print("not conflict free :(")
-        return float("inf")
+        return -1
 
 # TODO: Wrap the above functions in a get_bounds() functiondef get_bounds(A: np.ndarray, iterations: int = 1):
 def get_bounds(cnp.ndarray[DTYPE_t, ndim=2] A, int iterations = 1):
@@ -137,10 +135,10 @@ def get_bounds(cnp.ndarray[DTYPE_t, ndim=2] A, int iterations = 1):
     for i in range(iterations):
         # Have the second returned value be the upper bound
         lb = min_unweighted_vertex_cover_from_edgelist(edge_list)
-        print("lb found ", lb)
         best_lb = max(lb, best_lb)
 
         greedy_ub = vertex_cover_ub_greedy(A)
-        best_ub = min(greedy_ub, best_ub)
+        if greedy_ub >= 0:
+            best_ub = min(greedy_ub, best_ub)
 
     return best_lb, best_ub
