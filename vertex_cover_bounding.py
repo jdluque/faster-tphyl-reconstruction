@@ -11,7 +11,7 @@ from utils import get_effective_matrix
 
 
 class VertexCoverBounding(BoundingAlgAbstract):
-    def __init__(self, priority_version=-1, na_value=None):
+    def __init__(self, num_iterations=1, priority_version=-1, na_value=None):
         """Initialize the Linear Programming Bounding algorithm.
 
         Args:
@@ -37,6 +37,7 @@ class VertexCoverBounding(BoundingAlgAbstract):
         self.last_lp_feasible_delta = None
 
         # TODO: Add a number of iterations parameter
+        self.num_iterations = num_iterations
 
     def get_name(self):
         """Return a string identifier for this bounding algorithm."""
@@ -141,7 +142,6 @@ class VertexCoverBounding(BoundingAlgAbstract):
         # Otherwise compute the bound using LP
 
         rv = lb + delta.count_nonzero()
-        print("Found lower bound of ", rv)
         return rv
 
     def get_state(self):

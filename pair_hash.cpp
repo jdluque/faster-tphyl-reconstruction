@@ -12,6 +12,7 @@ struct pair_hash {
 
         // Combine the hash values. A common way is to use XOR.
         // You can use a more sophisticated combination if needed.
-        return h1 ^ (h2 << 1); // Simple combination
+        h1 ^= h2 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2);
+        return h1; // Simple combination
     }
 };

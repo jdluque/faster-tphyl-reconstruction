@@ -66,7 +66,7 @@ def solve_by_BnB(matrix_in, na_value, which_bounding):
         LinearProgrammingBounding("GLOP"),
         LinearProgrammingBounding("PDLP"),
         LinearProgrammingBoundingGurobi(),
-        VertexCoverBounding(),
+        VertexCoverBounding(15),
     ]
     result = bnb_solve(
         matrix_in, bounding_algorithm=bounding_algs[which_bounding], na_value=na_value

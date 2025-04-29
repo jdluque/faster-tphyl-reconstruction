@@ -250,8 +250,8 @@ def get_bounds(cnp.ndarray[DTYPE_t, ndim=2] A, int iterations = 1):
         lb = min_unweighted_vertex_cover_from_edgelist(edge_list)
         best_lb = max(lb, best_lb)
 
-        greedy_ub, flips = vertex_cover_ub_greedy(A)
-        if greedy_ub >= 0:
-            best_ub = min(greedy_ub, best_ub)
+    greedy_ub, flips = vertex_cover_ub_greedy(A)
+    if greedy_ub >= 0:
+        best_ub = min(greedy_ub, best_ub)
 
     return best_lb, best_ub, flips
