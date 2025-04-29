@@ -17,7 +17,9 @@ struct pair_hash {
         // You can use boost::hash_combine logic here if available,
         // but for a pure standard C++ approach, a combination of built-in hashes is common.
         // A simple shift and XOR:
-        return h1 ^ (h2 << 1);
+        // return h1 ^ (h2 << 1);
+        h1 ^= h2 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2);
+        return h1; // Simple combination
     }
 };
 
