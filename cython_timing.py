@@ -7,11 +7,10 @@ from vc_cython import (
 )
 
 import process_together_vc
-from vc import make_graph
 
 if __name__ == "__main__":
-    df = pd.read_csv("example/data2.SC", sep="\t", index_col=0)
-    # df = pd.read_csv("real/melanoma20_clean.tsv", sep="\t", index_col=0)
+    # df = pd.read_csv("example/data2.SC", sep="\t", index_col=0)
+    df = pd.read_csv("real/melanoma20_clean.tsv", sep="\t", index_col=0)
     df.reset_index(drop=True, inplace=True)
     df = (df == 1).astype(np.bool)
     A = df.to_numpy(dtype=np.int64)
@@ -26,11 +25,12 @@ if __name__ == "__main__":
     print(
         f"Python vectorized build edgelist Runtime: {time.time() - numpy_graph_build_time:.5f} s"
     )
-
-    nx_graph_build_time = time.time()
-    edge_list = make_graph(A.astype(np.bool))
-    print(f"Networkx build edgelist Runtime: {time.time() - nx_graph_build_time:.5f} s")
-
+    print(f"Vectorized edge size {len(edge_list)}")
+    #
+    # nx_graph_build_time = time.time()
+    # edge_list = make_graph(A.astype(np.bool))
+    # print(f"Networkx build edgelist Runtime: {time.time() - nx_graph_build_time:.5f} s")
+    #
     NUM_ITS = 1
     print(f"running {NUM_ITS} iterations")
 

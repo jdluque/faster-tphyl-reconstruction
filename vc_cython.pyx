@@ -4,7 +4,7 @@
 from libcpp.utility cimport pair
 from libcpp.unordered_set cimport unordered_set
 from libcpp.functional cimport hash
-from cpython.ref cimport PyObject
+from cython.operator cimport dereference as deref, preincrement as inc
 
 # Include our custom C++ header
 cdef extern from "pair_hash.h":
@@ -50,7 +50,7 @@ ctypedef pair[int, int] int_pair_t
 
 cdef vector[pair_of_pairs_t] get_conflict_edgelist(cnp.ndarray[DTYPE_t, ndim=2] A) noexcept:
     """Given a matrix A of mutations and cell samples, return an edgelist of
-    corresponding to a vertex cover instance of the matrix A. I.e., edges occur
+    # corresponding to a vertex cover instance of the matrix A. I.e., edges occur
     between zeros in conflict.
     """
     cdef int n = A.shape[1]
@@ -86,7 +86,7 @@ cdef vector[pair_of_pairs_t] get_conflict_edgelist(cnp.ndarray[DTYPE_t, ndim=2] 
                                 )
                         )
 
-    print("Edge list size: ", len(edge_list))
+    # print("Edge list size: ", len(edge_list))
     return edge_list
 
 cdef int min_unweighted_vertex_cover_from_edgelist(vector[pair_of_pairs_t] edge_list) noexcept:
@@ -95,6 +95,8 @@ cdef int min_unweighted_vertex_cover_from_edgelist(vector[pair_of_pairs_t] edge_
     """
     # Will hash the pairs manualy
     cdef unordered_set[int_pair_t, pair_hash] cover
+    cdef unordered_set[int_pair_t, pair_hash].iterator it
+    cdef int found_one = 0
 
     # TODO: Use a random device and swaps to shuffle the array instead of calling to numpy
     cdef int num_edges = edge_list.size()
@@ -106,22 +108,34 @@ cdef int min_unweighted_vertex_cover_from_edgelist(vector[pair_of_pairs_t] edge_
         # u, v = edge_list[i]
         lpair = edge_list[ixs[i]].first
         rpair = edge_list[ixs[i]].second
+        found_one = 0
         # lpair = edge_list[i].first
         # rpair = edge_list[i].second
         # print(f"{lpair}")
         # lhash = (hash(lpair.first) << 6) ^  hash(lpair.second) + 0x9e3779b9 + (hash(lpair.first) >> 2)
         # rhash = (hash(rpair.first) << 6) ^  hash(rpair.second) + 0x9e3779b9 + (hash(rpair.first) >> 2)
-        lhash = (hash(lpair.first) << 1) ^  hash(lpair.second)
-        rhash = (hash(rpair.first) << 1) ^  hash(rpair.second)
+        # lhash = (hash(lpair.first) << 1) ^  hash(lpair.second)
+        # rhash = (hash(rpair.first) << 1) ^  hash(rpair.second)
         # h1 ^= h2 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2);
         # if cover.find(lhash) == cover.end() or cover.find(rhash) == cover.end():
-        if cover.find(lpair) == cover.end() or cover.find(rpair) == cover.end():
+
+        it = cover.find(lpair)
+        while found_one == 0 and it != cover.end():
+            if deref(it) == lpair:
+                found_one = 1
+            inc(it)
+        it = cover.find(rpair)
+        while found_one == 0 and it != cover.end():
+            if deref(it) == rpair:
+                found_one = 1
+            inc(it)
+        if found_one == 0:
             cover.insert(lpair)
             cover.insert(rpair)
 
 
-    print(cover)
-    print(cover.size())
+    # print(cover)
+    # print(cover.size())
     if cover.size() % 2 == 0:
         return cover.size() // 2
     return cover.size() // 2 + 1
