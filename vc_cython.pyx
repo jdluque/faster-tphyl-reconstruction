@@ -1,6 +1,35 @@
 #cython: boundscheck=False, wraparound=False, nonecheck=False
 # distutils: language = c++
 
+from libcpp.utility cimport pair
+from libcpp.unordered_set cimport unordered_set
+from libcpp.functional cimport hash
+from cpython.ref cimport PyObject
+
+# Include our custom C++ header
+cdef extern from "pair_hash.h":
+    # Declare the C++ struct. We only need to declare the struct name
+    # and the operator() interface that we plan to use from Cython.
+    # The implementation is in the header file.
+    cdef cppclass pair_hash:
+        size_t operator()(const pair[int, int]&) const
+
+
+# Now declare the specialization of std::unordered_set using our custom hash
+# cdef extern from "<unordered_set>" namespace "std":
+#     cdef cppclass unordered_set[T, Hash]:
+#         ctypedef T value_type
+#         # Declare the methods you want to use from C++
+#         void insert(const value_type& value)
+#         size_t size() const
+#         size_t count(const value_type& value) const
+        # You would need to declare iterators if you want to loop in Cython
+        # e.g.,
+        # ctypedef __insert_return_type
+        # ctypedef __iterator
+        # __iterator begin()
+        # __iterator end()
+
 import numpy as np
 import cython
 
@@ -8,7 +37,7 @@ from utils import is_conflict_free_gusfield_and_get_two_columns_in_coflicts
 
 from libcpp.vector cimport vector
 from libcpp.pair cimport pair
-from libcpp.unordered_set cimport unordered_set
+# from libcpp.unordered_set cimport unordered_set
 from libc.limits cimport INT_MIN, INT_MAX
 cimport numpy as cnp
 
@@ -17,6 +46,7 @@ cnp.import_array()
 DTYPE = np.int64
 ctypedef cnp.int64_t DTYPE_t
 ctypedef pair[pair[int, int], pair[int, int]] pair_of_pairs_t
+ctypedef pair[int, int] int_pair_t
 
 cdef vector[pair_of_pairs_t] get_conflict_edgelist(cnp.ndarray[DTYPE_t, ndim=2] A) noexcept:
     """Given a matrix A of mutations and cell samples, return an edgelist of
@@ -29,11 +59,15 @@ cdef vector[pair_of_pairs_t] get_conflict_edgelist(cnp.ndarray[DTYPE_t, ndim=2] 
 
     cdef int p, q
     cdef int row1, row2
-    cdef int has_one_one = 0
+    cdef int has_one_one
     cdef vector[int] zero_ones, one_zeros
 
     for p in range(n):
         for q in range(p+1, n):
+            one_zeros.clear()
+            zero_ones.clear()
+            has_one_one = 0
+
             for i in range(m):
                 if A[i, p] and A[i, q]:
                     has_one_one = 1
@@ -46,12 +80,11 @@ cdef vector[pair_of_pairs_t] get_conflict_edgelist(cnp.ndarray[DTYPE_t, ndim=2] 
                 for row1 in zero_ones:
                     for row2 in one_zeros:
                         edge_list.push_back(
-                                pair_of_pairs_t(pair[int, int](row1, p), pair[int, int] (row2, q))
+                                pair_of_pairs_t(
+                                    int_pair_t(row1, p),
+                                    int_pair_t(row2, q)
+                                )
                         )
-                        # edge_list.push_back(pair[int, int](row2, q))
-            one_zeros.clear()
-            zero_ones.clear()
-            has_one_one = 0
 
     print("Edge list size: ", len(edge_list))
     return edge_list
@@ -61,24 +94,34 @@ cdef int min_unweighted_vertex_cover_from_edgelist(vector[pair_of_pairs_t] edge_
     networkx.algorithms.min_weighted_vertex_cover().
     """
     # Will hash the pairs manualy
-    cdef unordered_set[int] cover
+    cdef unordered_set[int_pair_t, pair_hash] cover
 
     # TODO: Use a random device and swaps to shuffle the array instead of calling to numpy
     cdef int num_edges = edge_list.size()
     cdef cnp.ndarray[DTYPE_t, ndim=1] ixs = np.random.permutation(num_edges)
     cdef int i, lrow, lcol, rrow, rcol
-    cdef pair[int, int] lpair, rpair
+    cdef int_pair_t lpair, rpair
     cdef int lhash, rhash
     for i in range(num_edges):
         # u, v = edge_list[i]
         lpair = edge_list[ixs[i]].first
         rpair = edge_list[ixs[i]].second
-        lhash = lpair.first * num_edges + lpair.second
-        rhash = rpair.first * num_edges + rpair.second
-        if cover.find(lhash) == cover.end() or cover.find(rhash) == cover.end():
-            cover.insert(lhash)
-            cover.insert(rhash)
+        # lpair = edge_list[i].first
+        # rpair = edge_list[i].second
+        # print(f"{lpair}")
+        # lhash = (hash(lpair.first) << 6) ^  hash(lpair.second) + 0x9e3779b9 + (hash(lpair.first) >> 2)
+        # rhash = (hash(rpair.first) << 6) ^  hash(rpair.second) + 0x9e3779b9 + (hash(rpair.first) >> 2)
+        lhash = (hash(lpair.first) << 1) ^  hash(lpair.second)
+        rhash = (hash(rpair.first) << 1) ^  hash(rpair.second)
+        # h1 ^= h2 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2);
+        # if cover.find(lhash) == cover.end() or cover.find(rhash) == cover.end():
+        if cover.find(lpair) == cover.end() or cover.find(rpair) == cover.end():
+            cover.insert(lpair)
+            cover.insert(rpair)
 
+
+    print(cover)
+    print(cover.size())
     if cover.size() % 2 == 0:
         return cover.size() // 2
     return cover.size() // 2 + 1
