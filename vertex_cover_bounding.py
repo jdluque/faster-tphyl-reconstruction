@@ -73,59 +73,16 @@ class VertexCoverBounding(BoundingAlgAbstract):
         init_node_time = time.time()
         model_time_start = time.time()
 
-        # TODO: Write a get_bounds_with_matrix() that also returns a matrix we
-        # can put in the while loop to get a valid leaf in this function
+        flips = vertex_cover_init(current_matrix)
 
-        # self.linear_program, self.linear_program_vars = get_linear_program(
-        #     current_matrix
-        # )
-        # TODO: Check that this modifies current_matrix in place
-        num_flips = vertex_cover_init(current_matrix)
-        # Create delta matrix (flips of 0→1)
-        nodedelta = sp.lil_matrix(np.logical_and(current_matrix == 1, self.matrix == 0))
-
-        # TODO: Add model timngs and remove old comments
-
-        # model_time = time.time() - model_time_start
-        # self._times["model_preparation_time"] += model_time
-        #
-        # model, vars = self.linear_program, self.linear_program_vars
-        # while True:
-        #     # Start timing model preparation
-        #     solver = model_builder.Solver(self.solver_name)
-        #
-        #     # Solve and time optimization
-        #     opt_time_start = time.time()
-        #     status = solver.solve(model)
-        #     opt_time = time.time() - opt_time_start
-        #     self._times["optimization_time"] += opt_time
-        #
-        #     if status != model_builder.SolveStatus.OPTIMAL:
-        #         # If no optimal solution, return None
-        #         return None
-        #
-        #     # Round solution to get a binary matrix
-        #     rounded_columns = set()
-        #     for i, j in vars:
-        #         # NOTE: Some solvers may give 0.5 - epsilon
-        #         if solver.value(vars[i, j]) >= 0.499:
-        #             if not current_matrix[i, j]:
-        #                 rounded_columns.add(j)
-        #             current_matrix[i, j] = 1
-        #
-        #     # Check if the solution is conflict-free
-        #
-        #     print("Rounded solution had conflicts")
-        #
-        #     model_time_start = time.time()
-        #     # Prepare model for another iteration
-        #     model, vars = get_linear_program_from_col_subset(
-        #         current_matrix, rounded_columns
-        #     )
-        #     self._times["model_preparation_time"] += time.time() - model_time_start
+        # TODO: Add model timngs
 
         init_node_time = time.time() - init_node_time
         # Create delta matrix (flips of 0→1)
+        # I don't need this because vertex_cover_init already flips the matrix entries
+        # TODO: Make the current_matrix flips more efficient
+        # for i, j in flips:
+        #     current_matrix[i, j] = 1
         nodedelta = sp.lil_matrix(np.logical_and(current_matrix == 1, self.matrix == 0))
 
         print("Completed init node: objective_value=", self.next_lb)
@@ -147,90 +104,6 @@ class VertexCoverBounding(BoundingAlgAbstract):
         )
 
         return node
-
-    def compute_lp_bound(self, delta, na_delta=None):
-        """Helper method to compute LP bound for a given delta.
-
-        Args:
-            delta: Sparse matrix with flipped entries
-            na_delta: NA entries to be flipped (not implemented)
-
-        Returns:
-            Lower bound value
-        """
-        # Create effective matrix
-        current_matrix = get_effective_matrix(self.matrix, delta, na_delta)
-
-        # Start timing model preparation
-        model_time_start = time.time()
-
-        # Instead of getting a brand new linear_program, recycle the initial one
-        for i, j in zip(*delta.nonzero()):
-            self.linear_program_vars[i, j].lower_bound = 1
-
-        # Record model preparation time
-        model_time = time.time() - model_time_start
-        self._times["model_preparation_time"] += model_time
-
-        # Solve and time optimization
-        opt_time_start = time.time()
-
-        solver = model_builder.Solver(self.solver_name)
-        status = solver.solve(self.linear_program)
-
-        opt_time = time.time() - opt_time_start
-        self._times["optimization_time"] += opt_time
-
-        if status != model_builder.SolveStatus.OPTIMAL:
-            print(
-                "Linear Programming Bounding: The problem does not have an optimal solution."
-            )
-            return float("inf")  # Return infinity as a bound
-
-        objective_value = solver.objective_value
-        # Can clone the model -- or better yet -- set the lower bounds back to 0
-        for i, j in zip(*delta.nonzero()):
-            self.linear_program_vars[i, j].lower_bound = 0
-
-        # Save extra info for branching decisions (TODO: Is this needed)
-        is_conflict_free, conflict_col_pair = (
-            is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
-                current_matrix, self.na_value
-            )
-        )
-        self._extraInfo = {
-            "icf": is_conflict_free,
-            "one_pair_of_columns": conflict_col_pair,
-        }
-
-        # Get upper bound (from rounded LP solution)
-
-        # Round LP solution
-        # NOTE: use current_matrix to accumulate the rounded solution since we
-        # do not need it anymore
-        # TODO: Fix the indexing into LP variables
-        for (i, j), variable in self.linear_program_vars.items():
-            if solver.value(variable) >= 0.499:
-                current_matrix[i, j] = 1
-
-        # Check if the rounded matrix is conflict free
-        is_cf, _ = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
-            current_matrix, self.na_value
-        )
-
-        # Create delta matrix (flips of 0→1)
-        if not is_cf:  # has conflicts
-            rounded_delta_matrix = None
-        else:
-            rounded_delta_matrix = sp.lil_matrix(
-                np.logical_and(current_matrix == 1, self.matrix == 0),
-            )
-
-        # Update with rounded matrix
-        self.last_lp_feasible_delta = rounded_delta_matrix
-
-        # Return the bound (LP objective includes existing flips)
-        return np.ceil(objective_value)
 
     def get_bound(self, delta, na_delta=None):
         """Calculate a lower bound on the number of flips needed.
@@ -266,7 +139,10 @@ class VertexCoverBounding(BoundingAlgAbstract):
             self.last_lp_feasible_delta = None
 
         # Otherwise compute the bound using LP
-        return lb + delta.count_nonzero()
+
+        rv = lb + delta.count_nonzero()
+        print("Found lower bound of ", rv)
+        return rv
 
     def get_state(self):
         """Get the current state of the bounding algorithm.

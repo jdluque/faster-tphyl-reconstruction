@@ -75,7 +75,7 @@ cdef int min_unweighted_vertex_cover_from_edgelist(vector[pair[int, int]] edge_l
         return cover.size() // 2
     return cover.size() // 2 + 1
 
-cdef int vertex_cover_ub_greedy(cnp.ndarray[DTYPE_t, ndim=2] A) noexcept:
+cdef (int, vector[pair[int, int]]) vertex_cover_ub_greedy(cnp.ndarray[DTYPE_t, ndim=2] A) noexcept:
     cdef int m = A.shape[0], n = A.shape[1]
     cdef cnp.ndarray[DTYPE_t, ndim=1] ixs = np.random.permutation(n)
 
@@ -122,23 +122,71 @@ cdef int vertex_cover_ub_greedy(cnp.ndarray[DTYPE_t, ndim=2] A) noexcept:
         A[row, col] = 0
 
     if is_cf:
-        return num_flips
+        return num_flips, flips
     else:
-        return -1
+        return -1, flips
 
-# TODO: Wrap the above functions in a get_bounds() functiondef get_bounds(A: np.ndarray, iterations: int = 1):
+def vertex_cover_init(cnp.ndarray[DTYPE_t, ndim=2] A):
+    cdef int m = A.shape[0], n = A.shape[1]
+    cdef cnp.ndarray[DTYPE_t, ndim=1] ixs = np.random.permutation(n)
+
+    cdef int i, j, p, q, num_flips, row, col
+    cdef int has_one_one = 0
+    cdef vector[int] one_zeros, zero_ones
+    cdef vector[pair[int, int]] flips
+    cdef int done = 0
+
+    while not done:
+        for p in range(n):
+            for q in range(p+1, n):
+                for i in range(m):
+                    if A[i, p] and A[i, q]:
+                        has_one_one = 1
+                    elif A[i, p] and not A[i, q]:
+                        one_zeros.push_back(i)
+                    elif not A[i, p] and A[i, q]:
+                        zero_ones.push_back(i)
+
+                if has_one_one and zero_ones.size() > 0 and one_zeros.size() > 0:
+                    # Resolve p, q conflict by flipping the cheaper of the two
+                    # TODO: Implement randomized later if desired
+                    if zero_ones.size() < one_zeros.size():
+                        for i in zero_ones:
+                            A[i, p] = 1
+                            flips.push_back(pair[int, int](i, p))
+                    else:
+                        for i in one_zeros:
+                            A[i, q] = 1
+                            flips.push_back(pair[int, int](i, q))
+
+                has_one_one = 0
+                one_zeros.clear()
+                zero_ones.clear()
+
+        # TODO: Implement me in cython
+        is_cf, col_pair = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(A, 3)
+        if is_cf:
+            done = 1
+
+    num_flips = flips.size()
+
+    return flips
+
+
+# TODO: Wrap the above functions in a get_bounds() function
 def get_bounds(cnp.ndarray[DTYPE_t, ndim=2] A, int iterations = 1):
     cdef int best_lb = 0
     cdef int best_ub = INT_MAX
     cdef int i, lb, greedy_ub
     cdef vector[pair[int, int]] edge_list = get_conflict_edgelist(A)
+    cdef vector[pair[int, int]] flips
     for i in range(iterations):
         # Have the second returned value be the upper bound
         lb = min_unweighted_vertex_cover_from_edgelist(edge_list)
         best_lb = max(lb, best_lb)
 
-        greedy_ub = vertex_cover_ub_greedy(A)
+        greedy_ub, flips = vertex_cover_ub_greedy(A)
         if greedy_ub >= 0:
             best_ub = min(greedy_ub, best_ub)
 
-    return best_lb, best_ub
+    return best_lb, best_ub, flips
