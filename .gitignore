@@ -1,5 +1,11 @@
 *__pycache__*
 *.pyc
 *.DS_Store
+vc_cython.c
+vc_cython.cpp
+*.so
+.python-version
+*.log
+*.html
 .pythonversion
 results
