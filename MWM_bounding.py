@@ -1,13 +1,16 @@
+import copy
+import time
+
 import networkx as nx
 import numpy as np
-import copy
 import pybnb
 import scipy.sparse as sp
 
-from utils import is_conflict_free_gusfield_and_get_two_columns_in_coflicts
 from abstract import BoundingAlgAbstract
+from utils import is_conflict_free_gusfield_and_get_two_columns_in_coflicts
 
-def simple_alg(x, mx_iter = 50):
+
+def simple_alg(x, mx_iter=50):
     sol = x.copy()
     for ind in range(mx_iter):
         icf, col_pair = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(sol)
@@ -23,7 +26,14 @@ def simple_alg(x, mx_iter = 50):
 
 
 class DynamicMWMBounding(BoundingAlgAbstract):
-    def __init__(self, ascending_order=False, na_value=None, priority_version=-2, pass_info=False, make_ub=False):
+    def __init__(
+        self,
+        ascending_order=False,
+        na_value=None,
+        priority_version=-2,
+        pass_info=False,
+        make_ub=False,
+    ):
         """
         :param ratio:
         :param ascending_order: if True the column pair with max weight is chosen in extra info
@@ -46,13 +56,14 @@ class DynamicMWMBounding(BoundingAlgAbstract):
         self.num_lower_bounds = 0
 
     def get_name(self):
-        params = [type(self).__name__,
-                  self.ascending_order,
-                  self.na_value,
-                  self.priority_version,
-                  self.pass_info,
-                  self.make_ub
-                  ]
+        params = [
+            type(self).__name__,
+            self.ascending_order,
+            self.na_value,
+            self.priority_version,
+            self.pass_info,
+            self.make_ub,
+        ]
         params_str = map(str, params)
         return "_".join(params_str)
 
@@ -71,8 +82,17 @@ class DynamicMWMBounding(BoundingAlgAbstract):
         icf, solution = simple_alg(self.matrix, mx_iter=500)
 
         nodedelta = sp.lil_matrix(np.logical_and(solution == 1, self.matrix == 0))
-        node_na_delta = sp.lil_matrix(np.logical_and(solution == 1, self.matrix == self.na_value))
-        node.state = (nodedelta, icf, None, nodedelta.count_nonzero(), self.get_state(), node_na_delta)
+        node_na_delta = sp.lil_matrix(
+            np.logical_and(solution == 1, self.matrix == self.na_value)
+        )
+        node.state = (
+            nodedelta,
+            icf,
+            None,
+            nodedelta.count_nonzero(),
+            self.get_state(),
+            node_na_delta,
+        )
         print("-----------", nodedelta.count_nonzero())
         node.queue_priority = 100000
         return node
@@ -100,9 +120,10 @@ class DynamicMWMBounding(BoundingAlgAbstract):
             self.G.add_edge(p, q, weight=min(number_of_zero_one, number_of_one_zero))
 
     def get_bound(self, delta, na_delta=None):
-
         self.num_lower_bounds += 1
         self._extraInfo = None
+
+        bound_time = time.time()
 
         current_matrix = self.matrix + delta
         old_g = copy.deepcopy(self.G)
@@ -119,16 +140,29 @@ class DynamicMWMBounding(BoundingAlgAbstract):
 
         sign = 1 if self.ascending_order else -1
 
-        opt_pair_value = delta.shape[0] * delta.shape[1] * (-sign)  # either + inf or - inf
+        opt_pair_value = (
+            delta.shape[0] * delta.shape[1] * (-sign)
+        )  # either + inf or - inf
         opt_pair = None
         lb = 0
         for a, b in best_pairing:
             lb += self.G[a][b]["weight"]
-            if self.G[a][b]["weight"] * sign > opt_pair_value * sign and self.G[a][b]["weight"] > 0:
+            if (
+                self.G[a][b]["weight"] * sign > opt_pair_value * sign
+                and self.G[a][b]["weight"] > 0
+            ):
                 opt_pair_value = self.G[a][b]["weight"]
                 opt_pair = (a, b)
         self.G = old_g
-        self._extra_info = {"icf": (lb == 0), "one_pair_of_columns": opt_pair if lb > 0 else None}
+        self._extra_info = {
+            "icf": (lb == 0),
+            "one_pair_of_columns": opt_pair if lb > 0 else None,
+        }
+
+        bound_time = time.time() - bound_time
+        self.lb_time_total += bound_time
+        self.lb_min_time = min(bound_time, self.lb_min_time)
+        self.lb_max_time = max(bound_time, self.lb_max_time)
         return lb + flips_mat.shape[0]
 
     def get_priority(self, till_here, this_step, after_here, icf=False):
@@ -152,3 +186,4 @@ class DynamicMWMBounding(BoundingAlgAbstract):
             elif pv_abs == 7:
                 return 0
         assert False, "get_priority did not return anything!"
+

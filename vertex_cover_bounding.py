@@ -1,4 +1,5 @@
 import copy
+import logging
 import time
 
 import numpy as np
@@ -9,6 +10,8 @@ from vc_cython import get_bounds, vertex_cover_init
 from abstract import BoundingAlgAbstract
 from utils import get_effective_matrix
 
+logger = logging.getLogger(__name__)
+
 
 class VertexCoverBounding(BoundingAlgAbstract):
     def __init__(self, num_iterations=1, priority_version=-1, na_value=None):
@@ -18,6 +21,8 @@ class VertexCoverBounding(BoundingAlgAbstract):
             priority_version: Controls node priority in the branch and bound tree
             na_value: Value representing missing data in the matrix
         """
+        super().__init__()
+
         self.matrix = None  # Input Matrix
         self._extra_info = None  # Additional information from bounding
         self._extraInfo = {}  # For compatibility with the abstract class
@@ -29,21 +34,19 @@ class VertexCoverBounding(BoundingAlgAbstract):
         self.model_state = None  # State to store/restore
 
         # Debug variables
-        self.num_lower_bounds = 0
         # This is the variable which holds an leaf node's number of flips
         # This gets populated when the vertex cover instance leads to a perfect
         # phylogeny and hence we can try to update the incumbent best node
         # TODO: Refactor this variable name
         self.last_lp_feasible_delta = None
 
-        # TODO: Add a number of iterations parameter
         self.num_iterations = num_iterations
+        logger.info("Sampling %d vertex covers", self.num_iterations)
 
     def get_name(self):
         """Return a string identifier for this bounding algorithm."""
         params = [
             type(self).__name__,
-            # TODO: Add other params?
             self.priority_version,
         ]
         params_str = map(str, params)
@@ -69,6 +72,7 @@ class VertexCoverBounding(BoundingAlgAbstract):
         node = pybnb.Node()
 
         # Matrix to become conflict free
+        # TODO: Can I do this without copying self.matrix
         current_matrix = np.copy(self.matrix)
 
         init_node_time = time.time()
@@ -86,9 +90,6 @@ class VertexCoverBounding(BoundingAlgAbstract):
         #     current_matrix[i, j] = 1
         nodedelta = sp.lil_matrix(np.logical_and(current_matrix == 1, self.matrix == 0))
 
-        print("Completed init node: objective_value=", self.next_lb)
-        print(f"{self._times=}")
-
         # Set node state
         node.state = (
             nodedelta,  # Delta matrix (flips)
@@ -97,6 +98,10 @@ class VertexCoverBounding(BoundingAlgAbstract):
             nodedelta.count_nonzero(),  # Current objective value
             self.get_state(),  # Algorithm state
             None,  # NA delta (not implemented)
+        )
+
+        logger.info(
+            "Computed best node in get_init_node() with %d flips", node.state[3]
         )
 
         # Set priority for this node
@@ -128,7 +133,14 @@ class VertexCoverBounding(BoundingAlgAbstract):
         effective_matrix = get_effective_matrix(self.matrix, delta, na_delta).astype(
             np.int64
         )
+
+        vc_time = time.time()
         lb, ub, flips = get_bounds(effective_matrix)
+        vc_time = time.time() - vc_time
+        self.lb_time_total += vc_time
+        self.lb_min_time = min(vc_time, self.lb_min_time)
+        self.lb_max_time = max(vc_time, self.lb_max_time)
+
         if ub >= 0:
             # TODO: Optimize this assignment
             for i, j in flips:
@@ -138,8 +150,6 @@ class VertexCoverBounding(BoundingAlgAbstract):
             )
         else:
             self.last_lp_feasible_delta = None
-
-        # Otherwise compute the bound using LP
 
         rv = lb + delta.count_nonzero()
         return rv

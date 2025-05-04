@@ -26,6 +26,8 @@
 # =========================================================================================
 
 import copy
+import csv
+import logging
 import os
 import time
 from argparse import ArgumentParser
@@ -35,6 +37,7 @@ import numpy as np
 import pandas as pd
 
 from bnb import solve_by_BnB
+from utils import is_conflict_free_gusfield_and_get_two_columns_in_coflicts
 
 
 def now():
@@ -255,6 +258,8 @@ def draw_tree(filename):
     mygraph.draw(f"{outputpath}.png")
 
 
+logger = logging.getLogger(__name__)
+
 if __name__ == "__main__":
     parser = ArgumentParser(
         description="A Fast Branch and Bound Algorithm for the Perfect Tumor Phylogeny Reconstruction Problem"
@@ -297,14 +302,42 @@ if __name__ == "__main__":
         required=False,
         help="Draw output tree with Graphviz [required Graphviz to be installed on the system]",
     )
+    optional.add_argument(
+        "-l",
+        "--log",
+        type=str,
+        default="experiments.log",
+        required=False,
+        help="Path for log file",
+    )
     args = parser.parse_args()
+
+    logging.basicConfig(
+        filename=args.log,
+        format="%(asctime)s : %(name)-8s : %(levelname)-6s : %(message)s",
+        level=logging.INFO,
+    )
 
     df_input = pd.read_csv(args.i, delimiter="\t", index_col=0)
     df_input = df_input.replace("?", 3)
     df_input = df_input.astype(int)
     matrix_input = df_input.values
     na_value = infer_na_value(matrix_input)
-    printf(f"{args=}")
+    logger.info("using args %s", args)
+
+    # NOTE: should match bounding_algs in bnb.solve_by_BnB
+    alg_name = [
+        "TwoSat full",
+        "TwoSat compact",
+        "LP GLOP full rewrite",
+        "LP PDLP partial rewrite",
+        "LP Gurobi partial rewrite",
+        "LP PDLP full rewrite",
+        "Vertex Cover",
+        "Maximum Weight Matching",
+    ][args.b - 1]
+    logger.info("Bounding algorithm: %s", alg_name)
+
     printf(f"Size: {matrix_input.shape}")
     printf(f"NAValue: {na_value}")
     printf(f"#Zeros: {len(np.where(matrix_input == 0)[0])}")
@@ -313,7 +346,7 @@ if __name__ == "__main__":
     start_time = time.time()
 
     matrix_output = matrix_input.copy()
-    flips = solve_by_BnB(matrix_input, na_value, args.b - 1)
+    flips, bnb_instance = solve_by_BnB(matrix_input, na_value, args.b - 1)
     for k in flips:
         matrix_output[k] = 1
     matrix_output[np.where(matrix_output == na_value)] = 0
@@ -323,7 +356,9 @@ if __name__ == "__main__":
     flips_0_1, flips_1_0, flips_na_0, flips_na_1 = count_flips(
         matrix_input, matrix_output, na_value
     )
-    cf = is_conflict_free(matrix_output)
+    cf, _ = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
+        matrix_output, None
+    )
     printf(f"#0->1: {flips_0_1}")
     printf(f"#1->0: {flips_1_0}")
     printf(f"#na->0: {flips_na_0}")
@@ -340,6 +375,64 @@ if __name__ == "__main__":
             os.makedirs(args.o)
         file = os.path.join(args.o, filename)
         df_output.to_csv(f"{file}.CFMatrix", sep="\t")
+
+        # TODO: Set write_csvs as arg flag?
+        write_csvs = True
+        if write_csvs:
+            best_nodes_csv_path = f"{args.o}/best_nodes.csv"
+            bounds_csv_path = f"{args.o}/bounds.csv"
+            times_csv_path = f"{args.o}/times.csv"
+            logger.info(
+                "Writing to csvs %s, %s, and %s",
+                best_nodes_csv_path,
+                bounds_csv_path,
+                times_csv_path,
+            )
+
+            with open(best_nodes_csv_path, "a", newline="") as csvfile:
+                writer = csv.writer(csvfile)
+
+                if not os.path.exists(best_nodes_csv_path) or not os.path.getsize(
+                    best_nodes_csv_path
+                ):
+                    writer.writerow(
+                        ["algorithm", "dataset", "objective", "seconds since start"]
+                    )
+                for obj, explored_time in bnb_instance.best_nodes:
+                    writer.writerow([alg_name, filename, obj, round(explored_time, 3)])
+
+            with open(bounds_csv_path, "a", newline="") as csvfile:
+                writer = csv.writer(csvfile)
+                if not os.path.exists(bounds_csv_path) or not os.path.getsize(
+                    bounds_csv_path
+                ):
+                    writer.writerow(
+                        ["algorithm", "dataset", "count", "min", "max", "mean"]
+                    )
+                writer.writerow(
+                    [
+                        alg_name,
+                        filename,
+                        round(bnb_instance.boundingAlg.num_lower_bounds, 3),
+                        round(bnb_instance.boundingAlg.lb_min_time, 3),
+                        round(bnb_instance.boundingAlg.lb_max_time, 3),
+                        round(
+                            bnb_instance.boundingAlg.lb_time_total
+                            / bnb_instance.boundingAlg.num_lower_bounds,
+                            3,
+                        ),
+                    ]
+                )
+
+            with open(times_csv_path, "a", newline="") as csvfile:
+                writer = csv.writer(csvfile)
+                if not os.path.exists(times_csv_path) or not os.path.getsize(
+                    times_csv_path
+                ):
+                    writer.writerow(["algorithm", "dataset", "seconds", "finished"])
+                writer.writerow(
+                    [alg_name, filename, round(end_time - start_time, 3), cf]
+                )
 
     if args.o and args.t and cf:
         draw_tree(f"{file}.CFMatrix")

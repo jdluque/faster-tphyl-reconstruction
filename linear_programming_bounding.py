@@ -1,25 +1,26 @@
 import copy
+import logging
 import time
 
-import gurobipy as gp
 import numpy as np
 import pybnb
 import scipy.sparse as sp
-from gurobipy import GRB
+from ortools.linear_solver.python import model_builder
 
 from abstract import BoundingAlgAbstract
-from linear_programming import (
-    get_linear_program_from_col_subset_gurobi,
-    get_linear_program_gurobi,
-)
+from linear_programming import get_linear_program, get_linear_program_from_col_subset
 from utils import (
     get_effective_matrix,
     is_conflict_free_gusfield_and_get_two_columns_in_coflicts,
 )
 
+logger = logging.getLogger(__name__)
 
-class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
-    def __init__(self, priority_version=-1, na_value=None):
+
+class LinearProgrammingBounding(BoundingAlgAbstract):
+    def __init__(
+        self, solver_name, branch_on_full_lp=True, priority_version=-1, na_value=None
+    ):
         """Initialize the Linear Programming Bounding algorithm.
 
         Args:
@@ -28,6 +29,7 @@ class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
         """
         super().__init__()
 
+        self.solver_name = solver_name  # LP solver
         self.matrix = None  # Input Matrix
         # Linear Program solver and variables
         self.linear_program = None
@@ -40,15 +42,12 @@ class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
         self.next_lb = None  # Store precomputed lower bound from get_init_node
         self.priority_version = priority_version  # Controls node priority calculation
         self.model_state = None  # State to store/restore
+        self.branch_on_full_lp = branch_on_full_lp
+        # Used to compute incumbent "upper bounds" after rounding LP solutions
         self.last_lp_feasible_delta = None
 
         # Debug variables
         self.num_lower_bounds = 0
-
-    def set_model_params(self, model: gp.Model):
-        # self.linear_program.Params.LogFile = "gurobi.log"
-        # self.linear_program.Params.LogToConsole = False
-        model.Params.OutputFlag = 0
 
     def get_name(self):
         """Return a string identifier for this bounding algorithm."""
@@ -67,7 +66,7 @@ class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
             matrix: The input matrix for the problem
         """
         assert self.na_value is None, "N/A is not implemented yet"
-        self.matrix: np.ndarray = matrix
+        self.matrix = matrix
         self._times = {"model_preparation_time": 0, "optimization_time": 0}
         self.model_state = None
 
@@ -79,64 +78,76 @@ class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
         """
         node = pybnb.Node()
 
-        # Start timing model preparation
-        model_time = time.time()
-        model, vars = get_linear_program_gurobi(self.matrix)
-        self.linear_program = model
-        self.linear_program_vars = vars
+        # Matrix to become conflict free
+        current_matrix = np.copy(self.matrix)
 
-        # Model getting
-        self.set_model_params(model)
+        init_node_time = time.time()
+        model_time_start = time.time()
 
-        # Record model preparation time
-        model_time = time.time() - model_time
+        self.linear_program, self.linear_program_vars = get_linear_program(
+            current_matrix
+        )
+
+        model_time = time.time() - model_time_start
         self._times["model_preparation_time"] += model_time
 
-        solution = np.copy(self.matrix)
+        model, vars = self.linear_program, self.linear_program_vars
         while True:
-            # Solve and time optimization
-            opt_time = time.time()
-            model.optimize()
-            self._times["optimization_time"] += time.time() - opt_time
+            # Start timing model preparation
+            solver = model_builder.Solver(self.solver_name)
 
-            if model.Status != gp.GRB.OPTIMAL:
+            # Solve and time optimization
+            opt_time_start = time.time()
+            status = solver.solve(model)
+            opt_time = time.time() - opt_time_start
+            self._times["optimization_time"] += opt_time
+
+            if status != model_builder.SolveStatus.OPTIMAL:
                 # If no optimal solution, return None
                 return None
+
+            # Store the LP objective value for future bound calculations
+            if self.next_lb is None:
+                self.next_lb = np.ceil(solver.objective_value)
+                logger.info("In get_init_node(): lower bound: %.2f", self.next_lb)
 
             # Round solution to get a binary matrix
             rounded_columns = set()
             for i, j in vars:
                 # NOTE: Some solvers may give 0.5 - epsilon
-                if vars[i, j].X >= 0.499:
-                    if not solution[i, j]:
+                if solver.value(vars[i, j]) >= 0.499:
+                    if not current_matrix[i, j]:
                         rounded_columns.add(j)
-                    solution[i, j] = 1
-            print(f"# Rounded columns {len(rounded_columns)=}")
+                    current_matrix[i, j] = 1
 
-            print(f"Solution now has {solution.sum()} ones")
             # Check if the solution is conflict-free
             icf, col_pair = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
-                solution, self.na_value
+                current_matrix, self.na_value
             )
+
             if icf:
                 break
-            print("Rounded solution is not conflict free")
-
-            model_time = time.time()
-            model, vars = get_linear_program_from_col_subset_gurobi(
-                solution, rounded_columns
+            logger.info(
+                "Rounded solution had conflicts -- resolving LP and re-rounding"
             )
-            self._times["model_preparation_time"] += time.time() - model_time
-            self.set_model_params(model)
 
-        print(f"Completed get_init_node(): {self._times=}")
+            model_time_start = time.time()
+            # Prepare model for another iteration
+            model, vars = get_linear_program_from_col_subset(
+                current_matrix, rounded_columns
+            )
+            self._times["model_preparation_time"] += time.time() - model_time_start
 
+        init_node_time = time.time() - init_node_time
         # Create delta matrix (flips of 0→1)
-        nodedelta = sp.lil_matrix(np.logical_and(solution == 1, self.matrix == 0))
+        nodedelta = sp.lil_matrix(np.logical_and(current_matrix == 1, self.matrix == 0))
 
-        # Store the LP objective value for future bound calculations
-        self.next_lb = np.ceil(model.getObjective().getValue())
-        print("In init node: objective_value=", self.next_lb)
+        # assert False, (
+        #     f"Done finding conflict free matrix with {nodedelta.count_nonzero()} flips in {init_node_time} s"
+        # )
+
+        logger.info("Completed init node: objective_value= %.2f", self.next_lb)
+        logger.info(f"{self._times=}")
 
         # Set node state
         node.state = (
@@ -155,12 +166,58 @@ class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
 
         return node
 
-    def compute_lp_bound(self, delta, na_delta=None):
+    # @DeprecationWarning  # Don't use this
+    # def get_initial_upper_bound(self, delta, max_rounds=10):
+    #     """Helper method to compute the upper bound based on rounded LP
+    #
+    #     Args:
+    #         delta: Sparse matrix with flipped entries
+    #         max_rounds: maximum number of rounds allowed
+    #
+    #     Returns:
+    #         Sparse delta matrix of added mutations
+    #     """
+    #     for attempt in range(max_rounds):  # FIX THIS SOLVE
+    #         solver, current_matrix = self.linear_program.get_solver_and_matrix(
+    #             delta, na_delta=None
+    #         )
+    #
+    #         if solver.Solve() != pywraplp.Solver.OPTIMAL:
+    #             print("Warning: LP did not solve to optimality on attempt", attempt)
+    #             continue  # Try again
+    #
+    #         # Round LP solution
+    #         rounded_matrix = np.copy(current_matrix)
+    #         for (i, j), var_index in self.linear_program_vars.items():
+    #             val = solver.Value(self.linear_program.var_from_index(var_index))
+    #             rounded_matrix[i, j] = 1 if val >= 0.499 else 0
+    #
+    #         # Check if the rounded matrix is conflict free
+    #         is_cf, _ = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
+    #             rounded_matrix, self.na_value
+    #         )
+    #
+    #         if is_cf:
+    #             # Return the corresponding sparse delta matrix
+    #             delta_matrix = sp.lil_matrix(
+    #                 np.logical_and(rounded_matrix == 1, self.matrix == 0)
+    #             )
+    #             return delta_matrix
+    #
+    #     print("Warning: Failed to find conflict-free rounded matrix within max rounds.")
+    #     return None
+
+    def compute_lp_bound(self, branch_on_full_lp, delta, na_delta=None):
         """Helper method to compute LP bound for a given delta.
 
         Args:
             delta: Sparse matrix with flipped entries
             na_delta: NA entries to be flipped (not implemented)
+            full_lp: bool
+                Whether to use the linear program with constraints for all
+                conflicts present in the matrix after flipping delta, or
+                whether to re-use the original LP, which contains only initial
+                conflicts.
 
         Returns:
             Lower bound value
@@ -168,37 +225,7 @@ class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
         # Create effective matrix
         current_matrix = get_effective_matrix(self.matrix, delta, na_delta)
 
-        # Start timing model preparation
-        model_time_start = time.time()
-
-        bound_time = time.time()
-
-        # Instead of getting a brand new linear_program, recycle the initial one
-        for i, j in zip(*delta.nonzero()):
-            self.linear_program.setAttr("LB", self.linear_program_vars[i, j], 1)
-
-        # Record model preparation time
-        model_time = time.time() - model_time_start
-        self._times["model_preparation_time"] += model_time
-
-        # Solve and time optimization
-        opt_time_start = time.time()
-
-        self.linear_program.optimize()
-        if self.linear_program.Status != GRB.OPTIMAL:
-            print(
-                "Linear Programming Bounding: The problem does not have an optimal solution."
-            )
-            return float("inf")
-
-        opt_time = time.time() - opt_time_start
-        self._times["optimization_time"] += opt_time
-
-        # Can clone the model -- or better yet -- set the lower bounds back to 0
-        for i, j in zip(*delta.nonzero()):
-            self.linear_program.setAttr("LB", self.linear_program_vars[i, j], 0)
-
-        # Save extra info for branching decisions (TODO: Is this needed)
+        # Save extra info for branching decisions
         is_conflict_free, conflict_col_pair = (
             is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
                 current_matrix, self.na_value
@@ -209,11 +236,61 @@ class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
             "one_pair_of_columns": conflict_col_pair,
         }
 
-        # Round LP soluton
-        # NOTE: use current_matrix to accumulate the rounded solution since we
-        # do not need it anymore
+        bound_time = time.time()
+        # If the current matrix is already conflict free, there is no need to
+        # do anything else
+        if is_conflict_free:
+            self.last_lp_feasible_delta = None
+            return np.ceil(objective_value)
+
+        # Start timing model preparation
+        model_time_start = time.time()
+
+        if branch_on_full_lp:
+            self.linear_program, self.linear_program_vars = get_linear_program(
+                current_matrix
+            )
+        else:
+            # Instead of getting a brand new linear_program, recycle the initial one
+            for i, j in zip(*np.nonzero(delta)):
+                if (i, j) in self.linear_program_vars:
+                    self.linear_program_vars[i, j].lower_bound = 1
+
+        # Record model preparation time
+        model_time = time.time() - model_time_start
+        self._times["model_preparation_time"] += model_time
+
+        # Solve and time optimization
+        opt_time_start = time.time()
+
+        solver = model_builder.Solver(self.solver_name)
+        status = solver.solve(self.linear_program)
+
+        opt_time = time.time() - opt_time_start
+        self._times["optimization_time"] += opt_time
+
+        if status != model_builder.SolveStatus.OPTIMAL:
+            logger.error(
+                "The LP does not have an optimal solution. This should not be possible."
+            )
+            return float("inf")  # Return infinity as a bound
+
+        if branch_on_full_lp:
+            objective_value = solver.objective_value + delta.count_nonzero()
+        else:
+            objective_value = solver.objective_value
+            # Can clone the model -- or better yet -- set the lower bounds back to 0
+            for i, j in zip(*np.nonzero(delta)):
+                if (i, j) in self.linear_program_vars:
+                    self.linear_program_vars[i, j].lower_bound = 0
+
+        # Get upper bound (from rounded LP solution)
+        # NOTE: This is the other option
+        # feasible_delta = self.get_initial_upper_bound(delta, max_rounds=10)
+
+        # Round LP solution, accumulating in the no-longer needed current_matrix
         for (i, j), variable in self.linear_program_vars.items():
-            if variable.X >= 0.499:
+            if solver.value(variable) >= 0.499:
                 current_matrix[i, j] = 1
 
         # Check if the rounded matrix is conflict free
@@ -238,7 +315,7 @@ class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
         self.last_lp_feasible_delta = rounded_delta_matrix
 
         # Return the bound (LP objective includes existing flips)
-        return np.ceil(self.linear_program.getObjective().getValue())
+        return np.ceil(objective_value)
 
     def get_bound(self, delta, na_delta=None):
         """Calculate a lower bound on the number of flips needed.
@@ -259,7 +336,9 @@ class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
             return lb
 
         # Otherwise compute the bound using LP
-        return self.compute_lp_bound(delta, na_delta)
+        return self.compute_lp_bound(
+            branch_on_full_lp=self.branch_on_full_lp, delta=delta, na_delta=na_delta
+        )
 
     def get_state(self):
         """Get the current state of the bounding algorithm.

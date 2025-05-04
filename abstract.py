@@ -10,6 +10,11 @@ class BoundingAlgAbstract:
         self._extraInfo = {}
         self._times = {}
         self.na_support = False
+        self.num_lower_bounds = 0
+        # Stats about computer lower bounds
+        self.lb_min_time = float("inf")
+        self.lb_max_time = float("-inf")
+        self.lb_time_total = 0
         pass
 
     def reset(self, matrix):
