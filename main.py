@@ -379,9 +379,11 @@ if __name__ == "__main__":
         # TODO: Set write_csvs as arg flag?
         write_csvs = True
         if write_csvs:
-            best_nodes_csv_path = f"{args.o}/best_nodes.csv"
-            bounds_csv_path = f"{args.o}/bounds.csv"
-            times_csv_path = f"{args.o}/times.csv"
+            if not os.path.exists("experiments"):
+                os.makedirs("experiments")
+            best_nodes_csv_path = "experiments/best_nodes.csv"
+            bounds_csv_path = "experiments/bounds.csv"
+            times_csv_path = "experiments/times.csv"
             logger.info(
                 "Writing to csvs %s, %s, and %s",
                 best_nodes_csv_path,
