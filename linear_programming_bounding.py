@@ -127,6 +127,14 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
 
             if icf:
                 break
+            if not (rounded_columns or icf):
+                logger.error(
+                    "No columns were rounded but the matrix is not conflict free. The algorithm is stuck. This can happen due to numerical issues with the LP solver (%s). Consider using a different LP solver or reducing the error tolerance.",
+                    self.solver_name,
+                )
+                raise Exception(
+                    "No columns were rounded but the matrix is not conflict free. The algorithm is stuck. This can happen due to numerical issues with the LP solver."
+                )
             logger.info(
                 "Rounded solution had conflicts -- resolving LP and re-rounding"
             )
