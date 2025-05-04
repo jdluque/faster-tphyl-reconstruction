@@ -39,12 +39,12 @@ from pysat.formula import WCNF
 from abstract import BoundingAlgAbstract
 from linear_programming import get_linear_program, get_linear_program_from_col_subset
 from LPBoundGurobi import LinearProgrammingBoundingGurobi
+from MWM_bounding import DynamicMWMBounding
 from utils import (
     get_effective_matrix,
     is_conflict_free_gusfield_and_get_two_columns_in_coflicts,
 )
 from vertex_cover_bounding import VertexCoverBounding
-from MWM_bounding import DynamicMWMBounding
 
 rec_num = 0
 
