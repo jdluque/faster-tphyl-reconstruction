@@ -115,7 +115,6 @@ cdef int min_unweighted_vertex_cover_from_edgelist(vector[pair_of_pairs_t] edge_
 
 cdef (int, vector[pair[int, int]]) vertex_cover_ub_greedy(cnp.ndarray[DTYPE_t, ndim=2] A) noexcept:
     cdef int m = A.shape[0], n = A.shape[1]
-    cdef cnp.ndarray[DTYPE_t, ndim=1] ixs = np.random.permutation(n)
 
     cdef int i, j, p, q, num_flips, row, col
     cdef int has_one_one = 0
@@ -166,7 +165,6 @@ cdef (int, vector[pair[int, int]]) vertex_cover_ub_greedy(cnp.ndarray[DTYPE_t, n
 
 def vertex_cover_init(cnp.ndarray[DTYPE_t, ndim=2] A):
     cdef int m = A.shape[0], n = A.shape[1]
-    cdef cnp.ndarray[DTYPE_t, ndim=1] ixs = np.random.permutation(n)
 
     cdef int i, j, p, q, num_flips, row, col
     cdef int has_one_one = 0
