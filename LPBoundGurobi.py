@@ -1,4 +1,5 @@
 import copy
+import logging
 import time
 
 import gurobipy as gp
@@ -12,6 +13,7 @@ from linear_programming import (
     get_linear_program_from_col_subset_gurobi,
     get_linear_program_gurobi,
 )
+from twosat import twosat_solver
 from utils import (
     get_effective_matrix,
     is_conflict_free_gusfield_and_get_two_columns_in_coflicts,
@@ -21,7 +23,19 @@ logger = logging.getLogger(__name__)
 
 
 class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
-    def __init__(self, priority_version=-1, na_value=None):
+    def __init__(
+        self,
+        hybrid,
+        priority_version=-1,
+        na_value=None,
+        cluster_rows=False,
+        cluster_cols=False,
+        only_descendant_rows=False,
+        heuristic_setting=None,
+        n_levels=2,
+        eps=0,
+        compact_formulation=False,
+    ):
         """Initialize the Linear Programming Bounding algorithm.
 
         Args:
@@ -43,6 +57,18 @@ class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
         self.priority_version = priority_version  # Controls node priority calculation
         self.model_state = None  # State to store/restore
         self.last_lp_feasible_delta = None
+
+        # Whether to use the max weight 2-sat bounding algorithm on the initial node
+        self.hybrid = hybrid
+
+        # TwoSatBounding params
+        self.heuristic_setting = heuristic_setting
+        self.n_levels = n_levels
+        self.eps = eps  # only for upperbound
+        self.compact_formulation = compact_formulation
+        self.cluster_rows = cluster_rows
+        self.cluster_cols = cluster_cols
+        self.only_descendant_rows = only_descendant_rows
 
         # Debug variables
         self.num_lower_bounds = 0
@@ -74,6 +100,56 @@ class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
         self.model_state = None
 
     def get_init_node(self):
+        """Create and return an initial node with a solution from the LP relaxation.
+
+        Returns:
+            A pybnb.Node object with initial solution
+        """
+        if self.hybrid:
+            return self.twosat_based_get_init_node()
+        else:
+            return self.lp_based_get_init_node()
+
+    def twosat_based_get_init_node(self):
+        node = pybnb.Node()
+        init_node_time = time.time()
+        solution, model_time, opt_time, lb = twosat_solver(
+            self.matrix,
+            cluster_rows=self.cluster_rows,
+            cluster_cols=self.cluster_cols,
+            only_descendant_rows=self.only_descendant_rows,
+            na_value=self.na_value,
+            leave_nas_if_zero=True,
+            return_lb=True,
+            heuristic_setting=None,
+            n_levels=self.n_levels,
+            eps=self.eps,
+            compact_formulation=self.compact_formulation,
+        )
+        self._times["model_preparation_time"] += model_time
+        self._times["optimization_time"] += opt_time
+
+        nodedelta = sp.lil_matrix(np.logical_and(solution == 1, self.matrix == 0))
+        init_node_time = time.time() - init_node_time
+        node_na_delta = sp.lil_matrix(
+            np.logical_and(solution == 1, self.matrix == self.na_value)
+        )
+        logger.info("Time to compute init node: %s ", self._times)
+        node.state = (
+            nodedelta,
+            True,
+            None,
+            nodedelta.count_nonzero(),
+            self.get_state(),
+            node_na_delta,
+        )
+        node.queue_priority = self.get_priority(
+            till_here=-1, this_step=-1, after_here=-1, icf=True
+        )
+        self.next_lb = lb
+        return node
+
+    def lp_based_get_init_node(self):
         """Create and return an initial node with a solution from the LP relaxation.
 
         Returns:

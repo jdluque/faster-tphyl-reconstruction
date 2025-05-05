@@ -64,7 +64,12 @@ def solve_by_BnB(matrix_in, na_value, which_bounding):
         ),  # Simulation
         LinearProgrammingBounding("GLOP", hybrid=False),
         LinearProgrammingBounding("PDLP", hybrid=False, branch_on_full_lp=False),
-        LinearProgrammingBoundingGurobi(),
+        LinearProgrammingBoundingGurobi(
+            hybrid=True,
+            heuristic_setting=[True, True, False, True, True],
+            n_levels=1,
+            compact_formulation=True,
+        ),
         LinearProgrammingBounding(
             "PDLP",
             hybrid=True,
