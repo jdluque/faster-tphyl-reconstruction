@@ -17,6 +17,8 @@ from utils import (
     is_conflict_free_gusfield_and_get_two_columns_in_coflicts,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
     def __init__(self, priority_version=-1, na_value=None):
