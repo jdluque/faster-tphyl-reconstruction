@@ -13,5 +13,5 @@ algorithm=11
 
 for file in $(ls -Sr data_4_28_25/*.SC.after_noise);
 do
-  python main.py --b $algorithm --input $file --output solutions/b$algorithm --log b${algorithm}.log
+  srun --time=2:00:00 -- python main.py --b $algorithm --input $file --output solutions/b$algorithm --log b${algorithm}.log
 done
