@@ -37,7 +37,7 @@ from abstract import BoundingAlgAbstract
 from linear_programming_bounding import LinearProgrammingBounding
 from LPBoundGurobi import LinearProgrammingBoundingGurobi
 from MWM_bounding import DynamicMWMBounding
-from twosat import twosat_solver
+from twosat import make_constraints_np_matrix, make_twosat_model_from_np, twosat_solver
 from utils import (
     get_effective_matrix,
     is_conflict_free_gusfield_and_get_two_columns_in_coflicts,
