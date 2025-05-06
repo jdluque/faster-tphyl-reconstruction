@@ -7,6 +7,8 @@
 #SBATCH --error=phiscs.out.%j
 #SBATCH --cpus-per-task 8
 
+algorithm=$1
+
 srun lscpu | grep 'Model name'
 
 for file in $(ls -Sr data_4_28_25/*.SC.after_noise)
