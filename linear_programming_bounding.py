@@ -9,6 +9,7 @@ from ortools.linear_solver.python import model_builder
 
 from abstract import BoundingAlgAbstract
 from linear_programming import get_linear_program, get_linear_program_from_col_subset
+from twosat import twosat_solver
 from utils import (
     get_effective_matrix,
     is_conflict_free_gusfield_and_get_two_columns_in_coflicts,
@@ -19,7 +20,20 @@ logger = logging.getLogger(__name__)
 
 class LinearProgrammingBounding(BoundingAlgAbstract):
     def __init__(
-        self, solver_name, branch_on_full_lp=True, priority_version=-1, na_value=None
+        self,
+        solver_name,
+        hybrid,
+        branch_on_full_lp=True,
+        priority_version=-1,
+        na_value=None,
+        # TwoSatBoudning params for hybrid algorithm
+        cluster_rows=False,
+        cluster_cols=False,
+        only_descendant_rows=False,
+        heuristic_setting=None,
+        n_levels=2,
+        eps=0,
+        compact_formulation=False,
     ):
         """Initialize the Linear Programming Bounding algorithm.
 
@@ -46,8 +60,21 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         # Used to compute incumbent "upper bounds" after rounding LP solutions
         self.last_lp_feasible_delta = None
 
+        # Whether to use the max weight 2-sat bounding algorithm on the initial node
+        self.hybrid = hybrid
+
         # Debug variables
         self.num_lower_bounds = 0
+
+        # TwoSatBounding params; to be used by the hybrid algorithm
+        self.heuristic_setting = heuristic_setting
+        self.n_levels = n_levels
+        self.eps = eps  # only for upperbound
+        self.compact_formulation = compact_formulation
+        self.cluster_rows = cluster_rows
+        self.cluster_cols = cluster_cols
+        self.only_descendant_rows = only_descendant_rows
+        self.num_lower_bounds = 1
 
     def get_name(self):
         """Return a string identifier for this bounding algorithm."""
@@ -76,6 +103,56 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         Returns:
             A pybnb.Node object with initial solution
         """
+        if self.hybrid:
+            return self.twosat_based_get_init_node()
+        else:
+            return self.lp_based_get_init_node()
+
+    def twosat_based_get_init_node(self):
+        # def twosat_solver(matrix, cluster_rows=False, cluster_cols=False, only_descendant_rows=False,
+        #                   na_value=None, leave_nas_if_zero=False, return_lb=False, heuristic_setting=None,
+        #                   n_levels=2, eps=0, compact_formulation=True):
+        #     pass
+
+        node = pybnb.Node()
+        init_node_time = time.time()
+        solution, model_time, opt_time, lb = twosat_solver(
+            self.matrix,
+            cluster_rows=self.cluster_rows,
+            cluster_cols=self.cluster_cols,
+            only_descendant_rows=self.only_descendant_rows,
+            na_value=self.na_value,
+            leave_nas_if_zero=True,
+            return_lb=True,
+            heuristic_setting=None,
+            n_levels=self.n_levels,
+            eps=self.eps,
+            compact_formulation=self.compact_formulation,
+        )
+        self._times["model_preparation_time"] += model_time
+        self._times["optimization_time"] += opt_time
+
+        nodedelta = sp.lil_matrix(np.logical_and(solution == 1, self.matrix == 0))
+        init_node_time = time.time() - init_node_time
+        node_na_delta = sp.lil_matrix(
+            np.logical_and(solution == 1, self.matrix == self.na_value)
+        )
+        logger.info("Time to compute init node: %s ", self._times)
+        node.state = (
+            nodedelta,
+            True,
+            None,
+            nodedelta.count_nonzero(),
+            self.get_state(),
+            node_na_delta,
+        )
+        node.queue_priority = self.get_priority(
+            till_here=-1, this_step=-1, after_here=-1, icf=True
+        )
+        self.next_lb = lb
+        return node
+
+    def lp_based_get_init_node(self):
         node = pybnb.Node()
 
         # Matrix to become conflict free
@@ -150,10 +227,6 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         # Create delta matrix (flips of 0→1)
         nodedelta = sp.lil_matrix(np.logical_and(current_matrix == 1, self.matrix == 0))
 
-        # assert False, (
-        #     f"Done finding conflict free matrix with {nodedelta.count_nonzero()} flips in {init_node_time} s"
-        # )
-
         logger.info("Completed init node: objective_value= %.2f", self.next_lb)
         logger.info(f"{self._times=}")
 
@@ -173,47 +246,6 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         )
 
         return node
-
-    # @DeprecationWarning  # Don't use this
-    # def get_initial_upper_bound(self, delta, max_rounds=10):
-    #     """Helper method to compute the upper bound based on rounded LP
-    #
-    #     Args:
-    #         delta: Sparse matrix with flipped entries
-    #         max_rounds: maximum number of rounds allowed
-    #
-    #     Returns:
-    #         Sparse delta matrix of added mutations
-    #     """
-    #     for attempt in range(max_rounds):  # FIX THIS SOLVE
-    #         solver, current_matrix = self.linear_program.get_solver_and_matrix(
-    #             delta, na_delta=None
-    #         )
-    #
-    #         if solver.Solve() != pywraplp.Solver.OPTIMAL:
-    #             print("Warning: LP did not solve to optimality on attempt", attempt)
-    #             continue  # Try again
-    #
-    #         # Round LP solution
-    #         rounded_matrix = np.copy(current_matrix)
-    #         for (i, j), var_index in self.linear_program_vars.items():
-    #             val = solver.Value(self.linear_program.var_from_index(var_index))
-    #             rounded_matrix[i, j] = 1 if val >= 0.499 else 0
-    #
-    #         # Check if the rounded matrix is conflict free
-    #         is_cf, _ = is_conflict_free_gusfield_and_get_two_columns_in_coflicts(
-    #             rounded_matrix, self.na_value
-    #         )
-    #
-    #         if is_cf:
-    #             # Return the corresponding sparse delta matrix
-    #             delta_matrix = sp.lil_matrix(
-    #                 np.logical_and(rounded_matrix == 1, self.matrix == 0)
-    #             )
-    #             return delta_matrix
-    #
-    #     print("Warning: Failed to find conflict-free rounded matrix within max rounds.")
-    #     return None
 
     def compute_lp_bound(self, branch_on_full_lp, delta, na_delta=None):
         """Helper method to compute LP bound for a given delta.
