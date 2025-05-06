@@ -335,6 +335,9 @@ if __name__ == "__main__":
         "LP PDLP full rewrite",
         "Vertex Cover",
         "Maximum Weight Matching",
+        "Hybrid LP Gurobi partial rewrite",
+        "Hybrid LP PDLP full rewrite",
+        "Hybrid LP PDLP partial rewrite",
     ][args.b - 1]
     logger.info("Bounding algorithm: %s", alg_name)
 

@@ -62,8 +62,14 @@ def solve_by_BnB(matrix_in, na_value, which_bounding):
             compact_formulation=True,
             na_value=na_value,
         ),  # Simulation
+        # TODO: Preserve the old algorithms orders so that the data remains
+        # relevant. Create new bounding algorithms for the hybrid algorithms.
         LinearProgrammingBounding("GLOP", hybrid=False),
         LinearProgrammingBounding("PDLP", hybrid=False, branch_on_full_lp=False),
+        LinearProgrammingBoundingGurobi(hybrid=False),
+        LinearProgrammingBounding("PDLP", hybrid=False, branch_on_full_lp=True),
+        VertexCoverBounding(5),
+        DynamicMWMBounding(na_value=na_value),
         LinearProgrammingBoundingGurobi(
             hybrid=True,
             heuristic_setting=[True, True, False, True, True],
@@ -78,8 +84,14 @@ def solve_by_BnB(matrix_in, na_value, which_bounding):
             n_levels=1,
             compact_formulation=True,
         ),
-        VertexCoverBounding(5),
-        DynamicMWMBounding(na_value=na_value),
+        LinearProgrammingBounding(
+            "PDLP",
+            hybrid=True,
+            branch_on_full_lp=False,
+            heuristic_setting=[True, True, False, True, True],
+            n_levels=1,
+            compact_formulation=True,
+        ),
     ]
     result = bnb_solve(
         matrix_in, bounding_algorithm=bounding_algs[which_bounding], na_value=na_value
