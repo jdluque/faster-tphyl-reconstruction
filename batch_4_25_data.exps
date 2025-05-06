@@ -1,0 +1,20 @@
+#!/bin/bash
+
+#SBATCH --time=2-00:00:00
+#SBATCH --qos=medium
+#SBATCH --mem=64gb
+#SBATCH --output=phiscs.out.%j
+#SBATCH --error=phiscs.out.%j
+#SBATCH --cpus-per-task 8
+#SBATCH --ntasks 4
+
+srun lscpu | grep 'Model name'
+
+for file in $(ls -Sr data_4_28_25/*.SC.after_noise | head -n 2)
+do
+  # Set the algorithms you wish to run here
+  for algorithm in 2 9 10 11
+  do
+  srun --ntasks=1 --time=2:00:00 -- python main.py --b $algorithm --input $file --output solutions/b$algorithm --log b${algorithm}.log
+  done
+done
