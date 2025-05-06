@@ -106,7 +106,12 @@ class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
             A pybnb.Node object with initial solution
         """
         if self.hybrid:
-            return self.twosat_based_get_init_node()
+            node, is_done = self.twosat_based_get_init_node()
+            if not is_done:
+                self.linear_program, self.linear_program_vars = (
+                    get_linear_program_gurobi(self.matrix)
+                )
+                self.set_model_params(self.linear_program)
         else:
             return self.lp_based_get_init_node()
 
@@ -135,11 +140,12 @@ class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
             np.logical_and(solution == 1, self.matrix == self.na_value)
         )
         logger.info("Time to compute init node: %s ", self._times)
+        initial_best_node_objective = nodedelta.count_nonzero()
         node.state = (
             nodedelta,
             True,
             None,
-            nodedelta.count_nonzero(),
+            initial_best_node_objective,
             self.get_state(),
             node_na_delta,
         )
@@ -147,7 +153,9 @@ class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
             till_here=-1, this_step=-1, after_here=-1, icf=True
         )
         self.next_lb = lb
-        return node
+
+        is_done = lb == initial_best_node_objective
+        return node, is_done
 
     def lp_based_get_init_node(self):
         """Create and return an initial node with a solution from the LP relaxation.
