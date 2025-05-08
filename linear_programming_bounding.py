@@ -290,7 +290,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         # do anything else
         if is_conflict_free:
             self.last_lp_feasible_delta = None
-            return np.ceil(objective_value)
+            return delta.count_nonzero()
 
         # Start timing model preparation
         model_time_start = time.time()
