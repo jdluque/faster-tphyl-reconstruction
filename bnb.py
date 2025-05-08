@@ -71,7 +71,7 @@ def solve_by_BnB(matrix_in, na_value, which_bounding):
         LinearProgrammingBounding("PDLP", hybrid=False, branch_on_full_lp=False),
         LinearProgrammingBoundingGurobi(hybrid=False),
         LinearProgrammingBounding("PDLP", hybrid=False, branch_on_full_lp=True),
-        VertexCoverBounding(5),
+        VertexCoverBounding(hybrid=False, num_iterations=5),
         DynamicMWMBounding(na_value=na_value),
         # Hybrid algorithms
         LinearProgrammingBoundingGurobi(
@@ -92,6 +92,7 @@ def solve_by_BnB(matrix_in, na_value, which_bounding):
             branch_on_full_lp=False,
             **two_sat_compact_kargs,
         ),
+        VertexCoverBounding(hybrid=True, num_iterations=5, **two_sat_compact_kargs),
     ]
     result = bnb_solve(
         matrix_in, bounding_algorithm=bounding_algs[which_bounding], na_value=na_value
