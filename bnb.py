@@ -49,6 +49,13 @@ logger = logging.getLogger(__name__)
 
 def solve_by_BnB(matrix_in, na_value, which_bounding):
     """Use TwoSatBounding to run BnB algorithm."""
+    two_sat_compact_kargs = {
+        "heuristic_setting": [True, True, False, True, True],
+        "n_levels": 1,
+        "compact_formulation": True,
+        "na_value": na_value,
+    }
+
     bounding_algs = [
         TwoSatBounding(
             heuristic_setting=None,
@@ -57,19 +64,16 @@ def solve_by_BnB(matrix_in, na_value, which_bounding):
             na_value=na_value,
         ),  # Real Data
         TwoSatBounding(
-            heuristic_setting=[True, True, False, True, True],
-            n_levels=1,
-            compact_formulation=True,
-            na_value=na_value,
+            **two_sat_compact_kargs,
         ),  # Simulation
-        # TODO: Preserve the old algorithms orders so that the data remains
-        # relevant. Create new bounding algorithms for the hybrid algorithms.
+        # Pure poly-time algorithms
         LinearProgrammingBounding("GLOP", hybrid=False),
         LinearProgrammingBounding("PDLP", hybrid=False, branch_on_full_lp=False),
         LinearProgrammingBoundingGurobi(hybrid=False),
         LinearProgrammingBounding("PDLP", hybrid=False, branch_on_full_lp=True),
         VertexCoverBounding(5),
         DynamicMWMBounding(na_value=na_value),
+        # Hybrid algorithms
         LinearProgrammingBoundingGurobi(
             hybrid=True,
             heuristic_setting=[True, True, False, True, True],
@@ -80,17 +84,13 @@ def solve_by_BnB(matrix_in, na_value, which_bounding):
             "PDLP",
             hybrid=True,
             branch_on_full_lp=True,
-            heuristic_setting=[True, True, False, True, True],
-            n_levels=1,
-            compact_formulation=True,
+            **two_sat_compact_kargs,
         ),
         LinearProgrammingBounding(
             "PDLP",
             hybrid=True,
             branch_on_full_lp=False,
-            heuristic_setting=[True, True, False, True, True],
-            n_levels=1,
-            compact_formulation=True,
+            **two_sat_compact_kargs,
         ),
     ]
     result = bnb_solve(
