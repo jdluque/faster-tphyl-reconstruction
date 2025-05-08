@@ -64,10 +64,14 @@ def solve_by_BnB(matrix_in, na_value, which_bounding):
         ),  # Simulation
         # TODO: Preserve the old algorithms orders so that the data remains
         # relevant. Create new bounding algorithms for the hybrid algorithms.
-        LinearProgrammingBounding("GLOP", hybrid=False),
-        LinearProgrammingBounding("PDLP", hybrid=False, branch_on_full_lp=False),
+        LinearProgrammingBounding("GLOP", compact_lp=False, hybrid=False),
+        LinearProgrammingBounding(
+            "PDLP", compact_lp=False, hybrid=False, branch_on_full_lp=False
+        ),
         LinearProgrammingBoundingGurobi(hybrid=False),
-        LinearProgrammingBounding("PDLP", hybrid=False, branch_on_full_lp=True),
+        LinearProgrammingBounding(
+            "PDLP", compact_lp=False, hybrid=False, branch_on_full_lp=True
+        ),
         VertexCoverBounding(5),
         DynamicMWMBounding(na_value=na_value),
         LinearProgrammingBoundingGurobi(
@@ -78,6 +82,7 @@ def solve_by_BnB(matrix_in, na_value, which_bounding):
         ),
         LinearProgrammingBounding(
             "PDLP",
+            compact_lp=False,
             hybrid=True,
             branch_on_full_lp=True,
             heuristic_setting=[True, True, False, True, True],
@@ -86,8 +91,18 @@ def solve_by_BnB(matrix_in, na_value, which_bounding):
         ),
         LinearProgrammingBounding(
             "PDLP",
+            compact_lp=False,
             hybrid=True,
             branch_on_full_lp=False,
+            heuristic_setting=[True, True, False, True, True],
+            n_levels=1,
+            compact_formulation=True,
+        ),
+        LinearProgrammingBounding(
+            "PDLP",
+            compact_lp=True,
+            hybrid=True,
+            branch_on_full_lp=True,
             heuristic_setting=[True, True, False, True, True],
             n_levels=1,
             compact_formulation=True,

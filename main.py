@@ -338,6 +338,7 @@ if __name__ == "__main__":
         "Hybrid LP Gurobi partial rewrite",
         "Hybrid LP PDLP full rewrite",
         "Hybrid LP PDLP partial rewrite",
+        "Hybrid compact LP PDLP partial rewrite",
     ][args.b - 1]
     logger.info("Bounding algorithm: %s", alg_name)
 

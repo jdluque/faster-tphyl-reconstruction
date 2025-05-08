@@ -170,7 +170,7 @@ def add_constraints_for_newly_rounded_cols(
 
 
 def get_linear_program(
-    matrix,
+    matrix, compact_lp
 ) -> tuple[ModelBuilder, defaultdict[tuple[int, int], mb.Variable]]:
     model = ModelBuilder()
     # WARN: Can use type np.bool only because there are no na values
@@ -193,10 +193,27 @@ def get_linear_program(
                 continue
             zero_ones = np.nonzero(np.logical_and(~col_p, col_q))[0]
             one_zeros = np.nonzero(np.logical_and(col_p, ~col_q))[0]
-            for row1 in zero_ones:
-                for row2 in one_zeros:
-                    # For every 10 and 01 in conflict, at least one is (fractionally) flipped
-                    model.add_linear_constraint(vars[row1, p] + vars[row2, q], 1)
+
+            if not (len(zero_ones) and len(one_zeros)):
+                continue
+
+            if compact_lp:
+                # flip01 >= vars[row, p];i.e., flip01 is "as large" as a flip01 occurs
+                flip01 = model.new_var(0, 1, False, None)
+                for row in zero_ones:
+                    model.add_linear_constraint(flip01 - vars[row, p], 0)
+
+                flip10 = model.new_var(0, 1, False, None)
+                for row in one_zeros:
+                    model.add_linear_constraint(flip10 - vars[row, q], 0)
+
+                model.add_linear_constraint(flip01 + flip10, 1)
+
+            else:
+                for row1 in zero_ones:
+                    for row2 in one_zeros:
+                        # For every 10 and 01 in conflict, at least one is (fractionally) flipped
+                        model.add_linear_constraint(vars[row1, p] + vars[row2, q], 1)
 
     # All created variables are correspond to zeros in the matrix
     model.minimize(sum(vars.values()))

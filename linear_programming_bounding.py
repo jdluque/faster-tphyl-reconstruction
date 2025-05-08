@@ -23,6 +23,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         self,
         solver_name,
         hybrid,
+        compact_lp,
         branch_on_full_lp=True,
         priority_version=-1,
         na_value=None,
@@ -56,7 +57,10 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         self.next_lb = None  # Store precomputed lower bound from get_init_node
         self.priority_version = priority_version  # Controls node priority calculation
         self.model_state = None  # State to store/restore
+
         self.branch_on_full_lp = branch_on_full_lp
+        self.compact_lp = compact_lp
+
         # Used to compute incumbent "upper bounds" after rounding LP solutions
         self.last_lp_feasible_delta = None
 
@@ -107,7 +111,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
             node, is_done = self.twosat_based_get_init_node()
             if not is_done:
                 self.linear_program, self.linear_program_vars = get_linear_program(
-                    self.matrix
+                    self.matrix, self.compact_lp
                 )
             return node
         else:
@@ -171,7 +175,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         model_time_start = time.time()
 
         self.linear_program, self.linear_program_vars = get_linear_program(
-            current_matrix
+            current_matrix, self.compact_lp
         )
 
         model_time = time.time() - model_time_start
@@ -297,7 +301,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
 
         if branch_on_full_lp:
             self.linear_program, self.linear_program_vars = get_linear_program(
-                current_matrix
+                current_matrix, self.compact_lp
             )
         else:
             # Instead of getting a brand new linear_program, recycle the initial one
