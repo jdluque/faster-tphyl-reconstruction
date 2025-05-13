@@ -202,3 +202,62 @@ def get_linear_program(
     model.minimize(sum(vars.values()))
 
     return model, vars
+
+
+def get_extended_linear_program(matrix: np.ndarray) -> tuple[ModelBuilder, dict]:
+    """Get the LP relaxation of the full PhISCS IP
+    Input:
+    matrix: np.ndarray
+        0-1-matrix to write linear program for
+    Return: LP model, dict of LP variables
+    """
+    model = ModelBuilder()
+    m, n = matrix.shape
+    matrix = matrix.astype(np.bool)
+
+    # Create variables
+    vars = {}
+    for p in range(n):
+        for q in range(p + 1, n):
+            vars[f"B_{p}_{q}_1_0"] = model.new_var(0, 1, False, f"B_{p}_{q}_1_0")  # (6)
+            vars[f"B_{p}_{q}_0_1"] = model.new_var(0, 1, False, f"B_{p}_{q}_0_1")  # (6)
+            vars[f"B_{p}_{q}_1_1"] = model.new_var(0, 1, False, f"B_{p}_{q}_1_1")  # (6)
+            col_p, col_q = matrix[:, p], matrix[:, q]
+    for i in range(m):
+        for j in range(n):
+            vars[f"x_{i}_{j}"] = model.new_var(
+                matrix[i, j], 1, False, f"x_{i}_{j}"
+            )  # (7)
+
+    # Create constraints
+    for p in range(n):
+        for q in range(p + 1, n):
+            model.add_linear_constraint(
+                vars[f"B_{p}_{q}_1_0"]
+                + vars[f"B_{p}_{q}_0_1"]
+                + vars[f"B_{p}_{q}_1_1"],
+                ub=2,
+            )  # (5)
+            for i in range(m):
+                model.add_linear_constraint(
+                    vars[f"x_{i}_{p}"] - vars[f"x_{i}_{q}"] - vars[f"B_{p}_{q}_1_0"],
+                    ub=0,
+                )  # (2)
+                model.add_linear_constraint(
+                    -vars[f"x_{i}_{p}"] + vars[f"x_{i}_{q}"] - vars[f"B_{p}_{q}_0_1"],
+                    ub=0,
+                )  # (3)
+                model.add_linear_constraint(
+                    vars[f"x_{i}_{p}"]
+                    + vars[f"x_{i}_{q}"]
+                    - 1
+                    - vars[f"B_{p}_{q}_1_1"],
+                    ub=0,
+                )  # (4)
+
+    # Define objective function
+    model.minimize(
+        sum(vars[f"x_{i}_{j}"] for i in range(m) for j in range(n) if not matrix[i, j])
+    )
+
+    return model, vars
