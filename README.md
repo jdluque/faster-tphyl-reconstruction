@@ -1,23 +1,9 @@
-# PhISCS-BnB
+# Exact and Efficient Inference of Tumor Phylogenies via Novel Pruning Techniques
 
-PhISCS-BnB is a fast tool for reconstructing the perfect tumor phylogeny using single-cell data via branch and bound.
+This is a tool extending [PhISCS-BnB](https://github.com/algo-cancer/PhISCS-BnB.git), a fast tool for reconstructing the perfect tumor phylogeny using single-cell data via branch and bound. In particular, we add several faster polynomial-time algorithms pruning algorithms for the branch-and-bound search. Through hybrid algorithms, combining insights from our algorithms and from PhISCS-BnB, we achieve substantial speedups (upwards of 300x) in our experiments.
 
-PhISCS-BnB has been published in **Bioinformatics (Proceedings of ISMB 2020)** [(doi:10.1093/bioinformatics/btaa464)](https://doi.org/10.1093/bioinformatics/btaa464). If you find this code useful in your research, please consider citing.
-```
-@article{azer2020phiscs,
-  doi           = {10.1093/bioinformatics/btaa464},
-  url           = {https://doi.org/10.1093/bioinformatics/btaa464},
-  year          = 2020,
-  month         = jul,
-  publisher     = {Oxford University Press ({OUP})},
-  volume        = {36},
-  number        = {Supplement{\_}1},
-  pages         = {i169--i176},
-  author        = {Erfan {Sadeqi Azer} and Farid {Rashidi Mehrabadi} and Salem Maliki{\'{c}} and Xuan Cindy Li and Osnat Bartok and Kevin Litchfield and Ronen Levy and Yardena Samuels and Alejandro A Sch\"{a}ffer and E Michael Gertz and Chi-Ping Day and Eva P{\'{e}}rez-Guijarro and Kerrie Marie and Maxwell P Lee and Glenn Merlino and Funda Ergun and S Cenk Sahinalp},
-  title         = {{{PhISCS}-{BnB}: a fast branch and bound algorithm for the perfect tumor phylogeny reconstruction problem}},
-  journal       = {Bioinformatics}
-}
-```
+<!-- TODO: Add bibtex reference -->
+If you would like to cite this work, see
 
 ## Contents
   1. [Installation](#installation)
@@ -32,8 +18,11 @@ PhISCS-BnB has been published in **Bioinformatics (Proceedings of ISMB 2020)** [
 ## Installation
 PhISCS-BnB is written in Python. It supports Python 3. Currently it is intended to be run on POSIX-based systems (only Linux and macOS have been tested).  
 
-At the time of extending this project for ((our currently unnamed work)) the developers used Python 3.10.4. 
+<!-- TODO: insert title -->
+At the time of extending this project for (()) the developers used Python 3.10.4. 
 
+<!-- TODO: update requirements file  -->
+<!-- TODO: update repo name below file  -->
 ```console
 ~$ git clone https://github.com/algo-cancer/PhISCS-BnB.git
 ~$ cd PhISCS-BnB
@@ -45,6 +34,9 @@ At the time of extending this project for ((our currently unnamed work)) the dev
 ## Running
 
 <a name="input"></a>
+
+<!-- TODO: Cython instructions -->
+
 ### Input
 
 Single-cell input is assumed to be represented in the form of ternary, __tab-delimited__, matrix with rows corresponding to single-cells and columns corresponding to mutations. We assume that this file contains headers and that matrix is ternary matrix with 0 denoting the absence and 1 denoting the presence of mutation in a given cell, whereas ? represents the lack of information about presence/absence of mutation in a given cell (i.e. missing entry). __In order to simplify parsing of the matrix, we also assume that upper left corner equals to string `cellID/mutID`__.
@@ -127,5 +119,9 @@ For each node, the number inside the brackets denotes its node id and the number
 ```
 
 <a name="contact"></a>
+
+### Logging 
+<!-- TODO: Fill in -->
+
 ## Contact
-If you have any questions please e-mail us at esadeqia@iu.edu or frashidi@iu.edu.
+If you have any questions please e-mail jluque@umd.edu
