@@ -70,6 +70,9 @@ output file: OUT_DIR/ALL2.CFMatrix
 | -b         | Bounding algorithm                       | 1        | :white_circle: |
 | -t         | Draw output tree with Graphviz           | -        | :white_circle: |
 
+To trigger our original LP bounding algorithm with PDLP solver, use `-b 10` for _full_ LP rewrites and  `-b 11` for _partial_ LP rewrites. The bounding algorithms indicated by `-b 1` and `-b 2` are MWS algorithms carried over from PhISCS-BnB.
+
+
 <a name="example"></a>
 ## Example
 

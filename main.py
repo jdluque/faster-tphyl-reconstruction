@@ -292,7 +292,7 @@ if __name__ == "__main__":
         type=int,
         default=1,
         required=False,
-        help="Bounding algorithm (1, 4) [default: %(default)s]",
+        help="Bounding algorithm (1, 12) [default: %(default)s]",
     )
     optional.add_argument(
         "-t",
