@@ -2,9 +2,6 @@
 
 This is a tool extending [PhISCS-BnB](https://github.com/algo-cancer/PhISCS-BnB.git), a fast tool for reconstructing the perfect tumor phylogeny using single-cell data via branch and bound. In particular, we add several faster polynomial-time algorithms pruning algorithms for the branch-and-bound search. Through hybrid algorithms, combining insights from our algorithms and from PhISCS-BnB, we achieve substantial speedups (upwards of 300x) in our experiments.
 
-<!-- TODO: Add bibtex reference -->
-If you would like to cite this work, see
-
 ## Contents
   1. [Installation](#installation)
   2. [Running](#running)
@@ -16,27 +13,25 @@ If you would like to cite this work, see
 
 <a name="installation"></a>
 ## Installation
-PhISCS-BnB is written in Python. It supports Python 3. Currently it is intended to be run on POSIX-based systems (only Linux and macOS have been tested).  
 
-<!-- TODO: insert title -->
-At the time of extending this project for (()) the developers used Python 3.10.4. 
+This tool is written and tested with Python 3.10. Currently it is intended to be run on POSIX-based systems (only Linux and macOS have been tested).  
 
-<!-- TODO: update requirements file  -->
-<!-- TODO: update repo name below file  -->
 ```console
-~$ git clone https://github.com/algo-cancer/PhISCS-BnB.git
-~$ cd PhISCS-BnB
+~$ git clone https://github.com/jdluque/faster-tphyl-reconstruction
+~$ cd faster-tphyl-reconstruction
 ~$ pip install -r requirements.txt
 ~$ python main.py --help
 ```
+
+The Vertex Cover bounding algorithm relies on compiling a cython `.so` file. To compile this file, run
+```console
+ setup.py build_ext --inplace 
+````
 
 <a name="running"></a>
 ## Running
 
 <a name="input"></a>
-
-<!-- TODO: Cython instructions -->
-
 ### Input
 
 Single-cell input is assumed to be represented in the form of ternary, __tab-delimited__, matrix with rows corresponding to single-cells and columns corresponding to mutations. We assume that this file contains headers and that matrix is ternary matrix with 0 denoting the absence and 1 denoting the presence of mutation in a given cell, whereas ? represents the lack of information about presence/absence of mutation in a given cell (i.e. missing entry). __In order to simplify parsing of the matrix, we also assume that upper left corner equals to string `cellID/mutID`__.
@@ -119,9 +114,6 @@ For each node, the number inside the brackets denotes its node id and the number
 ```
 
 <a name="contact"></a>
-
-### Logging 
-<!-- TODO: Fill in -->
 
 ## Contact
 If you have any questions please e-mail jluque@umd.edu
