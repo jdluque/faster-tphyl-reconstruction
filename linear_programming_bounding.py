@@ -413,9 +413,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         """
         return copy.copy(self._extraInfo)
 
-    def get_priority(
-        self, till_here, this_step, after_here, icf=False
-    ):  # TODO: Do I need this
+    def get_priority(self, till_here, this_step, after_here, icf=False):
         """Calculate the priority of a node for the branch and bound queue.
 
         Args:

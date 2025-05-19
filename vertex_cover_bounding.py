@@ -151,15 +151,12 @@ class VertexCoverBounding(BoundingAlgAbstract):
         node = pybnb.Node()
 
         # Matrix to become conflict free
-        # TODO: Can I do this without copying self.matrix
         current_matrix = np.copy(self.matrix)
 
         init_node_time = time.time()
         model_time_start = time.time()
 
         flips = vertex_cover_init(current_matrix)
-
-        # TODO: Add model timngs
 
         init_node_time = time.time() - init_node_time
         # Create delta matrix (flips of 0→1)
@@ -255,9 +252,7 @@ class VertexCoverBounding(BoundingAlgAbstract):
         """
         return copy.copy(self._extraInfo)
 
-    def get_priority(
-        self, till_here, this_step, after_here, icf=False
-    ):  # TODO: Do I need this
+    def get_priority(self, till_here, this_step, after_here, icf=False):
         """Calculate the priority of a node for the branch and bound queue.
 
         Args:
