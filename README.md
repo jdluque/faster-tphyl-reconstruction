@@ -35,20 +35,20 @@ For more information on installing Cython, [see](https://cython.readthedocs.io/e
 <a name="input"></a>
 ### Input
 
-Single-cell input is assumed to be represented in the form of ternary, __tab-delimited__, matrix with rows corresponding to single-cells and columns corresponding to mutations. We assume that this file contains headers and that matrix is ternary matrix with 0 denoting the absence and 1 denoting the presence of mutation in a given cell, whereas ? represents the lack of information about presence/absence of mutation in a given cell (i.e. missing entry). __In order to simplify parsing of the matrix, we also assume that upper left corner equals to string `cellID/mutID`__.
+Single-cell input is assumed to be represented in the form of binary, __tab-delimited__, matrix with rows corresponding to single-cells and columns corresponding to mutations. We assume that this file contains headers and that matrix is binary matrix with 0 denoting the absence and 1 denoting the presence of mutation in a given cell. __In order to simplify parsing of the matrix, we also assume that upper left corner equals to string `cellID/mutID`__.
 
 Below is an example of single-cell data matrix. Note that mutation and cell names are arbitrary strings not containing tabs or spaces, however they must be unique.
 ```
 cellID/mutID  mut0  mut1  mut2  mut3  mut4  mut5  mut6  mut7
-cell0         0     0     ?     0     0     0     0     0
-cell1         0     ?     1     0     0     0     1     1
+cell0         0     0     0     0     0     0     0     0
+cell1         0     0     1     0     0     0     1     1
 cell2         0     0     1     0     0     0     1     1
 cell3         1     1     0     0     0     0     0     0
 cell4         0     0     1     0     0     0     0     0
 cell5         1     0     0     0     0     0     0     0
 cell6         0     0     1     0     0     0     1     1
 cell7         0     0     1     0     0     0     0     0
-cell8         ?     0     0     0     ?     0     ?     1
+cell8         0     0     0     0     0     0     0     1
 cell9         0     1     0     0     0     0     0     0
 ```
 
@@ -56,7 +56,7 @@ cell9         0     1     0     0     0     0     0     0
 ### Output
 The program will generate a file in **OUT_DIR** folder (which is set by argument -o or --outDir). This folder will be created automatically if it does not exist.
 
-The output matrix is also a tab-delimited file having the same format as the input matrix, except that eliminated mutations (columns) are excluded (so, in case when mutation elimination is allowed, this matrix typically contains less columns than the input matrix). Output matrix represents genotypes-corrected matrix (where false positives and false negatives from the input are corrected and each of the missing entries set to 0 or 1). Suppose the input file is **INPUT_MATRIX.ext**, the output matrix will be stored in file **OUT_DIR/INPUT_MATRIX.CFMatrix**. For example:
+The output matrix is also a tab-delimited file having the same format as the input matrix, except that eliminated mutations (columns) are excluded (so, in case when mutation elimination is allowed, this matrix typically contains less columns than the input matrix). Output matrix represents genotypes-corrected matrix (where false negatives from the input are corrected). Suppose the input file is **INPUT_MATRIX.ext**, the output matrix will be stored in file **OUT_DIR/INPUT_MATRIX.CFMatrix**. For example:
 ```
  input file: data/ALL2.SC
 output file: OUT_DIR/ALL2.CFMatrix
@@ -72,7 +72,7 @@ output file: OUT_DIR/ALL2.CFMatrix
 | -t         | Draw output tree with Graphviz           | -              | :white_circle: |
 | -l         | Log to a file                            | experiments.log| :white_circle: |
 
-To trigger our original LP bounding algorithm with PDLP solver, use `-b 10` for _full_ LP rewrites and  `-b 11` for _partial_ LP rewrites. The bounding algorithms indicated by `-b 1` and `-b 2` are MWS algorithms carried over from PhISCS-BnB.
+To trigger our original LP (Linear Program) bounding algorithm with PDLP solver, use `-b 10` for _full_ LP rewrites and  `-b 11` for _partial_ LP rewrites. The bounding algorithms indicated by `-b 1` and `-b 2` are MWS algorithms carried over from PhISCS-BnB.
 
 
 <a name="example"></a>
