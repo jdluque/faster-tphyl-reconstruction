@@ -27,6 +27,7 @@ The Vertex Cover bounding algorithm relies on compiling a cython `.so` file. To 
 ```console
  setup.py build_ext --inplace 
 ````
+For more information on installing Cython, [see](https://cython.readthedocs.io/en/latest/src/quickstart/install.html).
 
 <a name="running"></a>
 ## Running
