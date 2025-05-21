@@ -112,6 +112,7 @@ class LinearProgrammingBoundingGurobi(BoundingAlgAbstract):
                     get_linear_program_gurobi(self.matrix)
                 )
                 self.set_model_params(self.linear_program)
+            return node
         else:
             return self.lp_based_get_init_node()
 

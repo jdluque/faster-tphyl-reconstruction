@@ -35,8 +35,8 @@ import scipy.sparse as sp
 
 from abstract import BoundingAlgAbstract
 from linear_programming_bounding import LinearProgrammingBounding
-from LPBoundGurobi import LinearProgrammingBoundingGurobi
-from MWM_bounding import DynamicMWMBounding
+from linear_programming_bounding_gurobi import LinearProgrammingBoundingGurobi
+from max_weight_matching_bounding import DynamicMWMBounding
 from twosat import make_constraints_np_matrix, make_twosat_model_from_np, twosat_solver
 from utils import (
     get_effective_matrix,
