@@ -209,55 +209,57 @@ def get_extended_linear_program(matrix: np.ndarray) -> tuple[ModelBuilder, dict]
     Input:
     matrix: np.ndarray
         0-1-matrix to write linear program for
-    Return: LP model, dict of LP variables
+    Return: LP model, dict of LP variables correpsonding to flipping zeros
     """
     model = ModelBuilder()
     m, n = matrix.shape
     matrix = matrix.astype(np.bool)
 
     # Create variables
-    vars = {}
+    x_vars = {}
+    helper_vars = {}
     for p in range(n):
         for q in range(p + 1, n):
-            vars[f"B_{p}_{q}_1_0"] = model.new_var(0, 1, False, f"B_{p}_{q}_1_0")  # (6)
-            vars[f"B_{p}_{q}_0_1"] = model.new_var(0, 1, False, f"B_{p}_{q}_0_1")  # (6)
-            vars[f"B_{p}_{q}_1_1"] = model.new_var(0, 1, False, f"B_{p}_{q}_1_1")  # (6)
+            helper_vars[f"B_{p}_{q}_1_0"] = model.new_var(
+                0, 1, False, f"B_{p}_{q}_1_0"
+            )  # (6)
+            helper_vars[f"B_{p}_{q}_0_1"] = model.new_var(
+                0, 1, False, f"B_{p}_{q}_0_1"
+            )  # (6)
+            helper_vars[f"B_{p}_{q}_1_1"] = model.new_var(
+                0, 1, False, f"B_{p}_{q}_1_1"
+            )  # (6)
             col_p, col_q = matrix[:, p], matrix[:, q]
     for i in range(m):
         for j in range(n):
-            vars[f"x_{i}_{j}"] = model.new_var(
-                matrix[i, j], 1, False, f"x_{i}_{j}"
-            )  # (7)
+            x_vars[i, j] = model.new_var(matrix[i, j], 1, False, f"x_{i}_{j}")  # (7)
 
     # Create constraints
     for p in range(n):
         for q in range(p + 1, n):
             model.add_linear_constraint(
-                vars[f"B_{p}_{q}_1_0"]
-                + vars[f"B_{p}_{q}_0_1"]
-                + vars[f"B_{p}_{q}_1_1"],
+                helper_vars[f"B_{p}_{q}_1_0"]
+                + helper_vars[f"B_{p}_{q}_0_1"]
+                + helper_vars[f"B_{p}_{q}_1_1"],
                 ub=2,
             )  # (5)
             for i in range(m):
                 model.add_linear_constraint(
-                    vars[f"x_{i}_{p}"] - vars[f"x_{i}_{q}"] - vars[f"B_{p}_{q}_1_0"],
+                    x_vars[i, p] - x_vars[i, q] - helper_vars[f"B_{p}_{q}_1_0"],
                     ub=0,
                 )  # (2)
                 model.add_linear_constraint(
-                    -vars[f"x_{i}_{p}"] + vars[f"x_{i}_{q}"] - vars[f"B_{p}_{q}_0_1"],
+                    -x_vars[i, p] + x_vars[i, q] - helper_vars[f"B_{p}_{q}_0_1"],
                     ub=0,
                 )  # (3)
                 model.add_linear_constraint(
-                    vars[f"x_{i}_{p}"]
-                    + vars[f"x_{i}_{q}"]
-                    - 1
-                    - vars[f"B_{p}_{q}_1_1"],
+                    x_vars[i, p] + x_vars[i, q] - 1 - helper_vars[f"B_{p}_{q}_1_1"],
                     ub=0,
                 )  # (4)
 
     # Define objective function
     model.minimize(
-        sum(vars[f"x_{i}_{j}"] for i in range(m) for j in range(n) if not matrix[i, j])
+        sum(x_vars[i, j] for i in range(m) for j in range(n) if not matrix[i, j])
     )
 
-    return model, vars
+    return model, x_vars

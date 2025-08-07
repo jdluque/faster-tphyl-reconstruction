@@ -93,6 +93,10 @@ def solve_by_BnB(matrix_in, na_value, which_bounding):
             **two_sat_compact_kargs,
         ),
         VertexCoverBounding(hybrid=True, num_iterations=5, **two_sat_compact_kargs),
+        # Extended Linear Program
+        LinearProgrammingBounding(
+            "PDLP", hybrid=True, use_extended_lp=True, **two_sat_compact_kargs
+        ),
     ]
     result = bnb_solve(
         matrix_in, bounding_algorithm=bounding_algs[which_bounding], na_value=na_value

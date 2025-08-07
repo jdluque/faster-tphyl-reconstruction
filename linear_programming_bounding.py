@@ -8,7 +8,11 @@ import scipy.sparse as sp
 from ortools.linear_solver.python import model_builder
 
 from abstract import BoundingAlgAbstract
-from linear_programming import get_linear_program, get_linear_program_from_col_subset
+from linear_programming import (
+    get_extended_linear_program,
+    get_linear_program,
+    get_linear_program_from_col_subset,
+)
 from twosat import twosat_solver
 from utils import (
     get_effective_matrix,
@@ -24,6 +28,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         solver_name,
         hybrid,
         branch_on_full_lp=True,
+        use_extended_lp=False,
         priority_version=-1,
         na_value=None,
         # TwoSatBoudning params for hybrid algorithm
@@ -56,7 +61,10 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         self.next_lb = None  # Store precomputed lower bound from get_init_node
         self.priority_version = priority_version  # Controls node priority calculation
         self.model_state = None  # State to store/restore
+        # Whether to rewrite the LP with all present conflicts at every branching step
         self.branch_on_full_lp = branch_on_full_lp
+        # Whether to use the extended LP formulation
+        self.use_extended_lp = use_extended_lp
         # Used to compute incumbent "upper bounds" after rounding LP solutions
         self.last_lp_feasible_delta = None
 
@@ -170,9 +178,14 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         init_node_time = time.time()
         model_time_start = time.time()
 
-        self.linear_program, self.linear_program_vars = get_linear_program(
-            current_matrix
-        )
+        if self.use_extended_lp:
+            self.linear_program, self.linear_program_vars = get_extended_linear_program(
+                current_matrix
+            )
+        else:
+            self.linear_program, self.linear_program_vars = get_linear_program(
+                current_matrix
+            )
 
         model_time = time.time() - model_time_start
         self._times["model_preparation_time"] += model_time
@@ -256,17 +269,12 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
 
         return node
 
-    def compute_lp_bound(self, branch_on_full_lp, delta, na_delta=None):
+    def compute_lp_bound(self, delta, na_delta=None):
         """Helper method to compute LP bound for a given delta.
 
         Args:
             delta: Sparse matrix with flipped entries
             na_delta: NA entries to be flipped (not implemented)
-            branch_on_full_lp: bool
-                Whether to use the linear program with constraints for all
-                conflicts present in the matrix after flipping delta, or
-                whether to re-use the original LP, which contains only initial
-                conflicts.
 
         Returns:
             Lower bound value
@@ -295,7 +303,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         # Start timing model preparation
         model_time_start = time.time()
 
-        if branch_on_full_lp:
+        if self.branch_on_full_lp:
             self.linear_program, self.linear_program_vars = get_linear_program(
                 current_matrix
             )
@@ -324,7 +332,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
             )
             return float("inf")  # Return infinity as a bound
 
-        if branch_on_full_lp:
+        if self.branch_on_full_lp:
             objective_value = solver.objective_value + delta.count_nonzero()
         else:
             objective_value = solver.objective_value
@@ -385,9 +393,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
             return lb
 
         # Otherwise compute the bound using LP
-        return self.compute_lp_bound(
-            branch_on_full_lp=self.branch_on_full_lp, delta=delta, na_delta=na_delta
-        )
+        return self.compute_lp_bound(delta=delta, na_delta=na_delta)
 
     def get_state(self):
         """Get the current state of the bounding algorithm.
