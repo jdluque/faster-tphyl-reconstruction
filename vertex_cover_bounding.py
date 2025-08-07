@@ -58,7 +58,6 @@ class VertexCoverBounding(BoundingAlgAbstract):
         self.hybrid = hybrid
 
         self.num_iterations = num_iterations
-        logger.info("Sampling %d vertex covers", self.num_iterations)
 
         # TwoSatBounding params; to be used by the hybrid algorithm
         self.heuristic_setting = heuristic_setting
@@ -91,6 +90,7 @@ class VertexCoverBounding(BoundingAlgAbstract):
         self.model_state = None
 
     def get_init_node(self):
+        logger.info("Sampling %d vertex covers", self.num_iterations)
         if self.hybrid:
             return self.twosat_based_get_init_node()
         else:
