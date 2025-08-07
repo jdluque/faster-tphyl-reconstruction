@@ -262,7 +262,7 @@ class LinearProgrammingBounding(BoundingAlgAbstract):
         Args:
             delta: Sparse matrix with flipped entries
             na_delta: NA entries to be flipped (not implemented)
-            full_lp: bool
+            branch_on_full_lp: bool
                 Whether to use the linear program with constraints for all
                 conflicts present in the matrix after flipping delta, or
                 whether to re-use the original LP, which contains only initial
