@@ -1,15 +1,24 @@
-#!/usr/bin/env bash
+#!/bin/bash
+
+#SBATCH --time=2-00:00:00
+#SBATCH --qos=medium
+#SBATCH --mem=64gb
+#SBATCH --output=phiscs.out.%j
+#SBATCH --error=phiscs.out.%j
+#SBATCH --cpus-per-task 8
 
 # ===== Constants =====
 BASE_FOLDER="false_positive"
-ORIGINAL_DATA_FOLDER="$BASE_FOLDER/original_data" # "Juan_Arjun-Apr_28_2025/"
+ORIGINAL_DATA_FOLDER="data_4_28_25" # "Juan_Arjun-Apr_28_2025/"
 GENERATED_DATA_FOLDER="$BASE_FOLDER/generated_data"
 SOLUTION_FOLDER="$BASE_FOLDER/solutions"
 RESULTS_CSV_FILE="$BASE_FOLDER/false_positive_results.csv"
 
-FP_PROBABILITIES=(0.0 0.002) # Probabilities for a false positive
-ALGORITHMS_TO_RUN=(11) # List of algorithms to run
+FP_PROBABILITIES=(0.0 0.001 0.0001 0.00001) # Probabilities for a false positive
+ALGORITHMS_TO_RUN=(11 13 2) # List of algorithms to run
 RUN_NO_FALSE_POSITIVE_EVAL=false  # Set to false to skip additional evaluation
+
+srun lscpu | grep 'Model name'
 
 # ===== Ensure folders exist =====
 mkdir -p "$BASE_FOLDER" "$GENERATED_DATA_FOLDER" "$SOLUTION_FOLDER"
@@ -26,7 +35,7 @@ fi
 
 # ===== Step 1: Generate false positive data =====
 echo "Generating new data files..."
-python3 false_positive_generate_data.py \
+srun --time=2:00:00 -- python3 false_positive_generate_data.py \
     --original "$ORIGINAL_DATA_FOLDER" \
     --generated "$GENERATED_DATA_FOLDER" \
     --fp_probs "${FP_PROBABILITIES[@]}"
@@ -60,23 +69,23 @@ for data_file in "${FILES_TO_RUN[@]}"; do
         start_time=$(date +%s.%N)
 
         # Run the algorithm
-        conda run -n PHISCS python3 main.py \
+        # conda run -n PHISCS python3 main.py \
+            # -i "$data_file" \
+            # -o "$SOLUTION_FOLDER" \
+            # -b "$alg" \
+            # >/dev/null 2>&1
+        srun --time=2:00:00 -- python3 main.py \
             -i "$data_file" \
             -o "$SOLUTION_FOLDER" \
             -b "$alg" \
             >/dev/null 2>&1
-        # python3 main.py \
-        #     -i "$data_file" \
-        #     -o "$SOLUTION_FOLDER" \
-        #     -b "$alg" \
-        #     >/dev/null 2>&1
 
         # Calculate runtime
         end_time=$(date +%s.%N)
         runtime=$(echo "$end_time - $start_time" | bc)
 
         # Evaluate results
-        python3 false_positive_evaluate_solution.py \
+        srun --time=2:00:00 -- python3 false_positive_evaluate_solution.py \
             --data_file "$data_file" \
             --original "$ORIGINAL_DATA_FOLDER" \
             --solution "$SOLUTION_FOLDER" \
