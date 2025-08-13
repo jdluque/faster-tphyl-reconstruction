@@ -9,7 +9,7 @@
 
 # ===== Constants =====
 BASE_FOLDER="false_positive"
-ORIGINAL_DATA_FOLDER="data_4_28_25" # "Juan_Arjun-Apr_28_2025/"
+ORIGINAL_DATA_FOLDER="Juan_Arjun-Apr_28_2025"
 GENERATED_DATA_FOLDER="$BASE_FOLDER/generated_data"
 SOLUTION_FOLDER="$BASE_FOLDER/solutions"
 RESULTS_CSV_FILE="$BASE_FOLDER/false_positive_results.csv"
