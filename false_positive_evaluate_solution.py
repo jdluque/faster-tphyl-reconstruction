@@ -15,7 +15,9 @@ args = parser.parse_args()
 # Determine fp_probability
 filename = os.path.basename(args.data_file)
 if ".false_positives" in filename:
-    fp_probability = float(filename.split("-fp_")[1].split("-")[0])
+    fp_str_start = filename.find("-fp_") + len("-fp_")
+    fp_str_end = filename.find("-fn")
+    fp_probability = float(filename[fp_str_start:fp_str_end])
 else:
     fp_probability = 0.0
 
