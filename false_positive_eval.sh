@@ -35,7 +35,7 @@ fi
 
 # ===== Step 1: Generate false positive data =====
 echo "Generating new data files..."
-srun --time=2:00:00 -- python3 false_positive_generate_data.py \
+srun --time=1:00:00 -- python3 false_positive_generate_data.py \
     --original "$ORIGINAL_DATA_FOLDER" \
     --generated "$GENERATED_DATA_FOLDER" \
     --fp_probs "${FP_PROBABILITIES[@]}"
@@ -74,7 +74,7 @@ for data_file in "${FILES_TO_RUN[@]}"; do
             # -o "$SOLUTION_FOLDER" \
             # -b "$alg" \
             # >/dev/null 2>&1
-        srun --time=2:00:00 -- python3 main.py \
+        srun --time=1:00:00 -- python3 main.py \
             -i "$data_file" \
             -o "$SOLUTION_FOLDER" \
             -b "$alg" \
@@ -85,7 +85,7 @@ for data_file in "${FILES_TO_RUN[@]}"; do
         runtime=$(echo "$end_time - $start_time" | bc)
 
         # Evaluate results
-        srun --time=2:00:00 -- python3 false_positive_evaluate_solution.py \
+        srun --time=1:00:00 -- python3 false_positive_evaluate_solution.py \
             --data_file "$data_file" \
             --original "$ORIGINAL_DATA_FOLDER" \
             --solution "$SOLUTION_FOLDER" \
