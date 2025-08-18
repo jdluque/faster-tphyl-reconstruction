@@ -15,7 +15,7 @@ SOLUTION_FOLDER="$BASE_FOLDER/solutions"
 RESULTS_CSV_FILE="$BASE_FOLDER/false_positive_results.csv"
 
 FP_PROBABILITIES=(0.0 0.001 0.0001 0.00001) # Probabilities for a false positive
-ALGORITHMS_TO_RUN=(11 13 2) # List of algorithms to run
+ALGORITHMS_TO_RUN=(11 2) # List of algorithms to run
 RUN_NO_FALSE_POSITIVE_EVAL=false  # Set to false to skip additional evaluation
 
 srun lscpu | grep 'Model name'
@@ -57,12 +57,22 @@ if [ "$RUN_NO_FALSE_POSITIVE_EVAL" = true ]; then
     done < <(find "$ORIGINAL_DATA_FOLDER" -type f -name "*.after_noise" -print0)
 fi
 
+# Sort files using Python script
+    # Ordering: m asc, fn_percentage acs, n desc, sim_number asc, fp_probability acs
+    # Objective: The same simulation, all fp values should be run continually
+    # Objective: Go from easiest to hardest datasets
+SORTED_FILES_TO_RUN=()
+while IFS= read -r file; do
+    SORTED_FILES_TO_RUN+=("$file")
+done < <(printf "%s\n" "${FILES_TO_RUN[@]}" | python3 false_positive_sort_files.py)
+FILES_TO_RUN=("${SORTED_FILES_TO_RUN[@]}")
+
 # Print status
 echo "Starting simulations ... (${#FILES_TO_RUN[@]} found)"
 
 # Loop over files and algorithms
-for data_file in "${FILES_TO_RUN[@]}"; do
-    for alg in "${ALGORITHMS_TO_RUN[@]}"; do
+for alg in "${ALGORITHMS_TO_RUN[@]}"; do
+    for data_file in "${FILES_TO_RUN[@]}"; do
 
         # Print status
         echo "$(date +%H:%M:%S): Running algorithm $alg on $(basename "$data_file")..."
@@ -74,7 +84,7 @@ for data_file in "${FILES_TO_RUN[@]}"; do
             # -o "$SOLUTION_FOLDER" \
             # -b "$alg" \
             # >/dev/null 2>&1
-        srun --time=1:00:00 -- python3 main.py \
+        srun --time=2:00:00 -- python3 main.py \
             -i "$data_file" \
             -o "$SOLUTION_FOLDER" \
             -b "$alg" \
