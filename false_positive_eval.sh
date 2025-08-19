@@ -14,7 +14,7 @@ GENERATED_DATA_FOLDER="$BASE_FOLDER/generated_data"
 SOLUTION_FOLDER="$BASE_FOLDER/solutions"
 RESULTS_CSV_FILE="$BASE_FOLDER/false_positive_results.csv"
 
-FP_PROBABILITIES=(0.0 0.001 0.0001 0.00001) # Probabilities for a false positive
+FP_PROBABILITIES=(0.0 0.0001 0.00001) # Probabilities for a false positive
 ALGORITHMS_TO_RUN=(11 2) # List of algorithms to run
 RUN_NO_FALSE_POSITIVE_EVAL=false  # Set to false to skip additional evaluation
 
