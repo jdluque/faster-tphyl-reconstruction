@@ -67,6 +67,9 @@ while IFS= read -r file; do
 done < <(printf "%s\n" "${FILES_TO_RUN[@]}" | python3 false_positive_sort_files.py)
 FILES_TO_RUN=("${SORTED_FILES_TO_RUN[@]}")
 
+# Dump FILES_TO_RUN into a file to know which dataset number is being run
+printf "%s\n" "${FILES_TO_RUN[@]}" > "files_in_order.txt"
+
 # Last file run: simNo_3-n_100-m_100-fp_0.0-fn_0.15-na_0.SC.false_positives
 FILTERED_FILES=()
 TARGET_FILE="simNo_3-n_100-m_100-fp_0.0-fn_0.15-na_0.SC.false_positives"
