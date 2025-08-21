@@ -67,6 +67,18 @@ while IFS= read -r file; do
 done < <(printf "%s\n" "${FILES_TO_RUN[@]}" | python3 false_positive_sort_files.py)
 FILES_TO_RUN=("${SORTED_FILES_TO_RUN[@]}")
 
+# Last file run: simNo_3-n_100-m_100-fp_0.0-fn_0.15-na_0.SC.false_positives
+FILTERED_FILES=()
+TARGET_FILE="simNo_3-n_100-m_100-fp_0.0-fn_0.15-na_0.SC.false_positives"
+FOUND=false
+for file in "${FILES_TO_RUN[@]}"; do
+    if [ "$FOUND" = true ] || [[ "$(basename "$file")" == "$TARGET_FILE" ]]; then
+        FILTERED_FILES+=("$file")
+        FOUND=true
+    fi
+done
+FILES_TO_RUN=("${FILTERED_FILES[@]}")
+
 # Print status
 echo "Starting simulations ... (${#FILES_TO_RUN[@]} found)"
 
