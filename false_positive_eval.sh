@@ -14,8 +14,8 @@ GENERATED_DATA_FOLDER="$BASE_FOLDER/generated_data"
 SOLUTION_FOLDER="$BASE_FOLDER/solutions"
 RESULTS_CSV_FILE="$BASE_FOLDER/false_positive_results.csv"
 
-FP_PROBABILITIES=(0.0 0.0001 0.00001) # Probabilities for a false positive
-ALGORITHMS_TO_RUN=(11 2) # List of algorithms to run
+FP_PROBABILITIES=(0.01 0.001) # Probabilities for a false positive
+ALGORITHMS_TO_RUN=(11) # List of algorithms to run
 RUN_NO_FALSE_POSITIVE_EVAL=false  # Set to false to skip additional evaluation
 
 srun lscpu | grep 'Model name'
@@ -30,7 +30,7 @@ fi
 
 # ===== Create results CSV if not exists =====
 if [ ! -f "$RESULTS_CSV_FILE" ]; then
-    echo "sim_name,algorithm,fp_probability,num_rows,num_cols,num_existing_false_negatives,num_false_positives,l1_distance,total_ancestor_descendant_pairs,consistent_pair_count,filename,runtime" > "$RESULTS_CSV_FILE"
+    echo "sim_name,algorithm,fp_probability,num_rows,num_cols,num_existing_false_negatives,num_false_positives,l1_distance,total_ancestor_descendant_pairs,consistent_pair_count,different_lineage_numerator,different_lineage_denominator,different_lineage_accuracy,filename,runtime" > "$RESULTS_CSV_FILE"
 fi
 
 # ===== Step 1: Generate false positive data =====
@@ -71,16 +71,19 @@ FILES_TO_RUN=("${SORTED_FILES_TO_RUN[@]}")
 printf "%s\n" "${FILES_TO_RUN[@]}" > "files_in_order.txt"
 
 # Last file run: simNo_3-n_100-m_100-fp_0.0-fn_0.15-na_0.SC.false_positives
-FILTERED_FILES=()
-TARGET_FILE="simNo_3-n_100-m_100-fp_0.0-fn_0.15-na_0.SC.false_positives"
-FOUND=false
-for file in "${FILES_TO_RUN[@]}"; do
-    if [ "$FOUND" = true ] || [[ "$(basename "$file")" == "$TARGET_FILE" ]]; then
-        FILTERED_FILES+=("$file")
-        FOUND=true
-    fi
-done
-FILES_TO_RUN=("${FILTERED_FILES[@]}")
+# FILTERED_FILES=()
+# # TARGET_FILE="simNo_3-n_100-m_100-fp_0.0-fn_0.15-na_0.SC.false_positives"
+# TARGET_FILE="SKIP__TARGET_FILE_SEARCH"
+# # Beginning of fur experiments with rp_probability={0.01, 0.001)
+# TARGET_FILE="simNo_1-n_100-m_20-fp_0.001-fn_0.05-na_0.SC.false_positives"
+# FOUND=false
+# for file in "${FILES_TO_RUN[@]}"; do
+#     if [ "$FOUND" = true ] || [[ "$(basename "$file")" == "$TARGET_FILE" ]]; then
+#         FILTERED_FILES+=("$file")
+#         FOUND=true
+#     fi
+# done
+# FILES_TO_RUN=("${FILTERED_FILES[@]}")
 
 # Print status
 echo "Starting simulations ... (${#FILES_TO_RUN[@]} found)"
